@@ -1,1 +1,1179 @@
+<!DOCTYPE html><html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Queue Performance Dashboard</title>
+  <style>
+    :root {
+      --bg: #101114;
+      --panel: #181a20;
+      --panel-soft: #20232b;
+      --text: #f4f4f5;
+      --muted: #a1a1aa;
+      --border: #2f3340;
+      --accent: #5eead4;
+      --accent-strong: #14b8a6;
+      --danger: #fb7185;
+      --warning: #facc15;
+      --success: #86efac;
+      --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
+      --radius: 18px;
+      --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }* {
+  box-sizing: border-box;
+}
 
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font);
+  background: radial-gradient(circle at top left, rgba(94, 234, 212, 0.08), transparent 30%), var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+.app-shell {
+  width: min(1500px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 24px 0 40px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.title-block h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 3vw, 3rem);
+  letter-spacing: -0.04em;
+}
+
+.title-block p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  max-width: 720px;
+}
+
+.top-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1.5fr 1.1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent), var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.panel h2,
+.panel h3 {
+  margin: 0 0 12px;
+  letter-spacing: -0.02em;
+}
+
+.panel h2 {
+  font-size: 1.15rem;
+}
+
+.panel h3 {
+  font-size: 1rem;
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.row.between {
+  justify-content: space-between;
+}
+
+.field {
+  display: grid;
+  gap: 6px;
+  flex: 1;
+  min-width: 120px;
+}
+
+label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--panel-soft);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+}
+
+textarea {
+  min-height: 72px;
+  resize: vertical;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--panel-soft);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: transform 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(94, 234, 212, 0.5);
+}
+
+.btn.primary {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #042f2e;
+  font-weight: 700;
+}
+
+.btn.danger {
+  background: rgba(251, 113, 133, 0.12);
+  border-color: rgba(251, 113, 133, 0.45);
+  color: #fecdd3;
+}
+
+.btn.warning {
+  background: rgba(250, 204, 21, 0.12);
+  border-color: rgba(250, 204, 21, 0.4);
+  color: #fef08a;
+}
+
+.btn.success {
+  background: rgba(134, 239, 172, 0.12);
+  border-color: rgba(134, 239, 172, 0.45);
+  color: #bbf7d0;
+}
+
+.btn.small {
+  padding: 7px 10px;
+  font-size: 0.85rem;
+}
+
+.timer-card {
+  text-align: center;
+  padding: 28px 20px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, rgba(94, 234, 212, 0.12), rgba(20, 184, 166, 0.04)), var(--panel-soft);
+  border: 1px solid rgba(94, 234, 212, 0.24);
+}
+
+.timer-label {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.8rem;
+}
+
+.timer {
+  margin: 8px 0;
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  line-height: 1;
+}
+
+.timer.overdue {
+  color: var(--danger);
+}
+
+.timer-status {
+  color: var(--muted);
+}
+
+.active-queue {
+  font-size: 1.1rem;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.stat {
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.stat .value {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+}
+
+.stat .label {
+  color: var(--muted);
+  font-size: 0.84rem;
+  margin-top: 2px;
+}
+
+.stat.good .value {
+  color: var(--success);
+}
+
+.stat.bad .value {
+  color: var(--danger);
+}
+
+.stat.warn .value {
+  color: var(--warning);
+}
+
+.queue-list,
+.segment-list,
+.log-list {
+  display: grid;
+  gap: 10px;
+  max-height: 420px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.queue-card,
+.segment-card,
+.log-card {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 12px;
+}
+
+.queue-card.active,
+.segment-card.active {
+  border-color: rgba(94, 234, 212, 0.7);
+  background: rgba(94, 234, 212, 0.07);
+}
+
+.queue-card-title,
+.segment-title {
+  font-weight: 800;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.queue-meta,
+.segment-meta,
+.log-meta {
+  color: var(--muted);
+  font-size: 0.86rem;
+  margin-top: 4px;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.pill.good {
+  color: #bbf7d0;
+  border-color: rgba(134, 239, 172, 0.35);
+  background: rgba(134, 239, 172, 0.1);
+}
+
+.pill.bad {
+  color: #fecdd3;
+  border-color: rgba(251, 113, 133, 0.35);
+  background: rgba(251, 113, 133, 0.1);
+}
+
+.pill.warn {
+  color: #fef08a;
+  border-color: rgba(250, 204, 21, 0.35);
+  background: rgba(250, 204, 21, 0.1);
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  margin-top: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-strong);
+  transition: width 0.2s ease;
+}
+
+.table-like {
+  display: grid;
+  gap: 8px;
+}
+
+.mini-table-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mini-table-row:last-child {
+  border-bottom: 0;
+}
+
+.subtle {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.hidden {
+  display: none !important;
+}
+
+dialog {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--text);
+  border-radius: 22px;
+  padding: 0;
+  width: min(720px, calc(100vw - 28px));
+  box-shadow: var(--shadow);
+}
+
+dialog::backdrop {
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(4px);
+}
+
+.modal-inner {
+  padding: 20px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-header h2 {
+  margin: 0;
+}
+
+.footer-note {
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+@media (max-width: 1150px) {
+  .grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .main-panel {
+    grid-column: 1 / -1;
+    order: -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .app-shell {
+    width: min(100% - 20px, 1500px);
+    padding-top: 14px;
+  }
+
+  .topbar,
+  .grid {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .top-actions {
+    justify-content: stretch;
+  }
+
+  .top-actions .btn {
+    flex: 1;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mini-table-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <section class="title-block">
+        <h1>Queue Performance Dashboard</h1>
+        <p>A solo day planner, live productivity timer, and tiny judgement machine for queue work.</p>
+      </section>
+      <section class="top-actions">
+        <button class="btn" id="settingsBtn">Queue Settings</button>
+        <button class="btn" id="snapshotBtn">Save Current Plan</button>
+        <button class="btn warning" id="endDayBtn">End Day Review</button>
+        <button class="btn danger" id="resetBtn">Reset Day</button>
+      </section>
+    </header><section class="grid">
+  <aside class="panel stack">
+    <div>
+      <h2>Today’s Queue Plan</h2>
+      <p class="subtle">Add the queue blocks Resource Planning assigns you. Update them whenever the grand spreadsheet gods change their mind.</p>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label for="segmentQueue">Queue</label>
+        <select id="segmentQueue"></select>
+      </div>
+      <div class="field">
+        <label for="segmentStart">Start</label>
+        <input id="segmentStart" type="time" />
+      </div>
+      <div class="field">
+        <label for="segmentEnd">End</label>
+        <input id="segmentEnd" type="time" />
+      </div>
+    </div>
+
+    <div class="row">
+      <button class="btn primary" id="addSegmentBtn">Add Segment</button>
+      <button class="btn" id="sortSegmentsBtn">Sort</button>
+    </div>
+
+    <div class="segment-list" id="segmentList"></div>
+  </aside>
+
+  <section class="panel main-panel stack">
+    <div class="timer-card">
+      <div class="timer-label">Current App Timer</div>
+      <div class="active-queue" id="activeQueueName">No active queue</div>
+      <div class="timer" id="timerDisplay">--:--</div>
+      <div class="timer-status" id="timerStatus">Add a segment covering the current time, or manually select one below.</div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="timerProgress"></div>
+      </div>
+    </div>
+
+    <div class="row between">
+      <div class="row">
+        <button class="btn success" id="completeAppBtn">App Completed</button>
+        <button class="btn warning" id="pauseBtn">Pause Productivity</button>
+        <button class="btn" id="resumeBtn">Resume</button>
+      </div>
+      <div class="pill" id="pausePill">Running</div>
+    </div>
+
+    <div class="stats-grid">
+      <article class="stat">
+        <div class="value" id="completedCount">0</div>
+        <div class="label">Apps completed</div>
+      </article>
+      <article class="stat">
+        <div class="value" id="expectedCount">0.0</div>
+        <div class="label">Expected by now</div>
+      </article>
+      <article class="stat" id="paceStat">
+        <div class="value" id="paceValue">0.0</div>
+        <div class="label">Ahead / behind pace</div>
+      </article>
+      <article class="stat">
+        <div class="value" id="dayExpectedCount">0.0</div>
+        <div class="label">Expected for full day</div>
+      </article>
+    </div>
+
+    <section class="panel-soft stack">
+      <h2>Current Segment</h2>
+      <div id="currentSegmentDetails" class="subtle">No matching segment yet.</div>
+    </section>
+
+    <section>
+      <h2>Queue Breakdown</h2>
+      <div class="table-like" id="breakdownList"></div>
+    </section>
+  </section>
+
+  <aside class="panel stack">
+    <div>
+      <h2>Live Activity Log</h2>
+      <p class="subtle">Completions, pauses, resumes, and planning changes. The receipts, because memory is a liar.</p>
+    </div>
+    <div class="log-list" id="activityLog"></div>
+  </aside>
+</section>
+
+  </main>  <dialog id="settingsDialog">
+    <form method="dialog" class="modal-inner">
+      <div class="modal-header">
+        <h2>Queue Settings</h2>
+        <button class="btn small" value="close">Close</button>
+      </div><div class="stack">
+    <div class="row">
+      <div class="field">
+        <label for="queueName">Queue name</label>
+        <input id="queueName" placeholder="e.g. BCA, EDD, IDV" />
+      </div>
+      <div class="field">
+        <label for="queueRate">Apps per hour</label>
+        <input id="queueRate" type="number" min="0" step="0.1" placeholder="e.g. 4" />
+      </div>
+      <button class="btn primary" id="addQueueBtn" type="button">Add Queue</button>
+    </div>
+
+    <div class="queue-list" id="queueList"></div>
+  </div>
+</form>
+
+  </dialog>  <dialog id="reviewDialog">
+    <form method="dialog" class="modal-inner">
+      <div class="modal-header">
+        <h2>End Day Review</h2>
+        <button class="btn small" value="close">Close</button>
+      </div>
+      <div class="stack" id="reviewContent"></div>
+      <p class="footer-note">Start plan is captured with “Save Current Plan”. Current plan reflects whatever chaos Resource Planning later inflicted.</p>
+    </form>
+  </dialog>  <script>
+    const STORAGE_KEY = "queuePerformanceDashboard.v1";
+
+    const defaultState = {
+      queues: [
+        { id: crypto.randomUUID(), name: "BCA", rate: 4 },
+        { id: crypto.randomUUID(), name: "Onboarding", rate: 3 },
+        { id: crypto.randomUUID(), name: "IDV", rate: 5 }
+      ],
+      segments: [],
+      completions: [],
+      pauses: [],
+      activePause: null,
+      activityLog: [],
+      startingSnapshot: null,
+      timerStartedAt: null,
+      selectedSegmentId: null
+    };
+
+    let state = loadState();
+    let tickHandle = null;
+
+    const els = {
+      settingsBtn: document.getElementById("settingsBtn"),
+      snapshotBtn: document.getElementById("snapshotBtn"),
+      endDayBtn: document.getElementById("endDayBtn"),
+      resetBtn: document.getElementById("resetBtn"),
+      settingsDialog: document.getElementById("settingsDialog"),
+      reviewDialog: document.getElementById("reviewDialog"),
+      queueName: document.getElementById("queueName"),
+      queueRate: document.getElementById("queueRate"),
+      addQueueBtn: document.getElementById("addQueueBtn"),
+      queueList: document.getElementById("queueList"),
+      segmentQueue: document.getElementById("segmentQueue"),
+      segmentStart: document.getElementById("segmentStart"),
+      segmentEnd: document.getElementById("segmentEnd"),
+      addSegmentBtn: document.getElementById("addSegmentBtn"),
+      sortSegmentsBtn: document.getElementById("sortSegmentsBtn"),
+      segmentList: document.getElementById("segmentList"),
+      activeQueueName: document.getElementById("activeQueueName"),
+      timerDisplay: document.getElementById("timerDisplay"),
+      timerStatus: document.getElementById("timerStatus"),
+      timerProgress: document.getElementById("timerProgress"),
+      completeAppBtn: document.getElementById("completeAppBtn"),
+      pauseBtn: document.getElementById("pauseBtn"),
+      resumeBtn: document.getElementById("resumeBtn"),
+      pausePill: document.getElementById("pausePill"),
+      completedCount: document.getElementById("completedCount"),
+      expectedCount: document.getElementById("expectedCount"),
+      dayExpectedCount: document.getElementById("dayExpectedCount"),
+      paceValue: document.getElementById("paceValue"),
+      paceStat: document.getElementById("paceStat"),
+      currentSegmentDetails: document.getElementById("currentSegmentDetails"),
+      breakdownList: document.getElementById("breakdownList"),
+      activityLog: document.getElementById("activityLog"),
+      reviewContent: document.getElementById("reviewContent")
+    };
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return structuredClone(defaultState);
+        const parsed = JSON.parse(raw);
+        return { ...structuredClone(defaultState), ...parsed };
+      } catch {
+        return structuredClone(defaultState);
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function logActivity(type, text) {
+      state.activityLog.unshift({
+        id: crypto.randomUUID(),
+        type,
+        text,
+        at: new Date().toISOString()
+      });
+      state.activityLog = state.activityLog.slice(0, 80);
+      saveState();
+    }
+
+    function minutesFromTime(time) {
+      const [hours, minutes] = time.split(":").map(Number);
+      return hours * 60 + minutes;
+    }
+
+    function timeFromMinutes(totalMinutes) {
+      const hours = Math.floor(totalMinutes / 60).toString().padStart(2, "0");
+      const minutes = Math.floor(totalMinutes % 60).toString().padStart(2, "0");
+      return `${hours}:${minutes}`;
+    }
+
+    function nowMinutes() {
+      const now = new Date();
+      return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+    }
+
+    function formatDuration(seconds) {
+      const sign = seconds < 0 ? "-" : "";
+      const abs = Math.abs(Math.round(seconds));
+      const mins = Math.floor(abs / 60).toString().padStart(2, "0");
+      const secs = (abs % 60).toString().padStart(2, "0");
+      return `${sign}${mins}:${secs}`;
+    }
+
+    function formatClock(iso) {
+      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function getQueue(id) {
+      return state.queues.find(queue => queue.id === id);
+    }
+
+    function getCurrentSegment() {
+      if (state.selectedSegmentId) {
+        const selected = state.segments.find(segment => segment.id === state.selectedSegmentId);
+        if (selected) return selected;
+      }
+
+      const current = nowMinutes();
+      return state.segments.find(segment => {
+        const start = minutesFromTime(segment.start);
+        const end = minutesFromTime(segment.end);
+        return current >= start && current < end;
+      }) || null;
+    }
+
+    function getSegmentExpectedApps(segment, untilMinutes = null) {
+      const queue = getQueue(segment.queueId);
+      if (!queue) return 0;
+
+      const start = minutesFromTime(segment.start);
+      const end = minutesFromTime(segment.end);
+      const effectiveEnd = untilMinutes === null ? end : Math.min(Math.max(untilMinutes, start), end);
+      const minutes = Math.max(0, effectiveEnd - start);
+
+      return (minutes / 60) * Number(queue.rate || 0);
+    }
+
+    function getExpectedByNow() {
+      const current = nowMinutes();
+      return state.segments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment, current), 0);
+    }
+
+    function getExpectedFullDay(segments = state.segments) {
+      return segments.reduce((sum, segment) => {
+        const queue = state.queues.find(q => q.id === segment.queueId);
+        if (!queue) return sum;
+        const minutes = Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
+        return sum + (minutes / 60) * Number(queue.rate || 0);
+      }, 0);
+    }
+
+    function getPauseSecondsBetween(startIso, endIso) {
+      const start = new Date(startIso).getTime();
+      const end = new Date(endIso).getTime();
+      return state.pauses.reduce((sum, pause) => {
+        const pauseStart = new Date(pause.start).getTime();
+        const pauseEnd = pause.end ? new Date(pause.end).getTime() : Date.now();
+        const overlap = Math.max(0, Math.min(end, pauseEnd) - Math.max(start, pauseStart));
+        return sum + overlap / 1000;
+      }, 0);
+    }
+
+    function resetCurrentTimer() {
+      state.timerStartedAt = new Date().toISOString();
+      saveState();
+    }
+
+    function renderQueueOptions() {
+      els.segmentQueue.innerHTML = state.queues
+        .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)} - ${queue.rate} apps/hr</option>`)
+        .join("");
+    }
+
+    function renderQueues() {
+      els.queueList.innerHTML = state.queues.map(queue => `
+        <article class="queue-card">
+          <div class="queue-card-title">
+            <span>${escapeHtml(queue.name)}</span>
+            <span class="pill">${queue.rate} apps/hr</span>
+          </div>
+          <div class="queue-meta">One app every ${queue.rate > 0 ? Math.round(60 / queue.rate) : "--"} minutes.</div>
+          <div class="row" style="margin-top: 10px;">
+            <button class="btn small" data-edit-queue="${queue.id}">Edit</button>
+            <button class="btn small danger" data-delete-queue="${queue.id}">Delete</button>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderSegments() {
+      const currentSegment = getCurrentSegment();
+
+      els.segmentList.innerHTML = state.segments.map(segment => {
+        const queue = getQueue(segment.queueId);
+        const expected = getSegmentExpectedApps(segment);
+        const isActive = currentSegment && currentSegment.id === segment.id;
+        return `
+          <article class="segment-card ${isActive ? "active" : ""}">
+            <div class="segment-title">
+              <span>${escapeHtml(queue?.name || "Missing queue")}</span>
+              <span class="pill ${isActive ? "good" : ""}">${isActive ? "Active" : `${expected.toFixed(1)} apps`}</span>
+            </div>
+            <div class="segment-meta">${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr</div>
+            <div class="row" style="margin-top: 10px;">
+              <button class="btn small" data-select-segment="${segment.id}">Use Now</button>
+              <button class="btn small" data-edit-segment="${segment.id}">Edit</button>
+              <button class="btn small danger" data-delete-segment="${segment.id}">Delete</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderActivityLog() {
+      els.activityLog.innerHTML = state.activityLog.length
+        ? state.activityLog.map(item => `
+          <article class="log-card">
+            <div>${escapeHtml(item.text)}</div>
+            <div class="log-meta">${formatClock(item.at)}</div>
+          </article>
+        `).join("")
+        : `<p class="subtle">No activity yet. Suspiciously peaceful.</p>`;
+    }
+
+    function renderStats() {
+      const completed = state.completions.length;
+      const expectedByNow = getExpectedByNow();
+      const expectedFullDay = getExpectedFullDay();
+      const pace = completed - expectedByNow;
+
+      els.completedCount.textContent = completed;
+      els.expectedCount.textContent = expectedByNow.toFixed(1);
+      els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
+      els.paceValue.textContent = `${pace >= 0 ? "+" : ""}${pace.toFixed(1)}`;
+      els.paceStat.classList.remove("good", "bad", "warn");
+      els.paceStat.classList.add(pace >= 0.25 ? "good" : pace <= -0.25 ? "bad" : "warn");
+    }
+
+    function renderBreakdown() {
+      const byQueue = state.queues.map(queue => {
+        const queueSegments = state.segments.filter(segment => segment.queueId === queue.id);
+        const expected = queueSegments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment), 0);
+        const completed = state.completions.filter(app => app.queueId === queue.id).length;
+        return { queue, expected, completed, variance: completed - expected };
+      }).filter(row => row.expected > 0 || row.completed > 0);
+
+      els.breakdownList.innerHTML = byQueue.length
+        ? byQueue.map(row => `
+          <div class="mini-table-row">
+            <strong>${escapeHtml(row.queue.name)}</strong>
+            <span class="subtle">${row.completed} done / ${row.expected.toFixed(1)} expected</span>
+            <span class="pill ${row.variance >= 0 ? "good" : "bad"}">${row.variance >= 0 ? "+" : ""}${row.variance.toFixed(1)}</span>
+          </div>
+        `).join("")
+        : `<p class="subtle">No queue expectations yet.</p>`;
+    }
+
+    function renderCurrentSegmentDetails() {
+      const segment = getCurrentSegment();
+      if (!segment) {
+        els.currentSegmentDetails.textContent = "No active segment. Either your plan has a gap, or time itself is being unhelpful again.";
+        return;
+      }
+
+      const queue = getQueue(segment.queueId);
+      const expectedSegment = getSegmentExpectedApps(segment);
+      const completedInSegment = state.completions.filter(app => app.segmentId === segment.id).length;
+      els.currentSegmentDetails.innerHTML = `
+        <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
+        ${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
+        ${completedInSegment} completed during this segment.
+      `;
+    }
+
+    function renderTimer() {
+      const segment = getCurrentSegment();
+      const isPaused = Boolean(state.activePause);
+
+      if (!segment) {
+        els.activeQueueName.textContent = "No active queue";
+        els.timerDisplay.textContent = "--:--";
+        els.timerDisplay.classList.remove("overdue");
+        els.timerStatus.textContent = "No segment is active. Add one, update timings, or manually select a segment.";
+        els.timerProgress.style.width = "0%";
+        return;
+      }
+
+      const queue = getQueue(segment.queueId);
+      const secondsPerApp = queue && queue.rate > 0 ? 3600 / queue.rate : 0;
+
+      if (!state.timerStartedAt) resetCurrentTimer();
+
+      const start = new Date(state.timerStartedAt).getTime();
+      const elapsedRaw = (Date.now() - start) / 1000;
+      const pauseSeconds = getPauseSecondsBetween(state.timerStartedAt, new Date().toISOString());
+      const productiveElapsed = isPaused ? Math.max(0, elapsedRaw - pauseSeconds) : Math.max(0, elapsedRaw - pauseSeconds);
+      const remaining = secondsPerApp - productiveElapsed;
+      const progress = secondsPerApp ? Math.min(100, (productiveElapsed / secondsPerApp) * 100) : 0;
+
+      els.activeQueueName.textContent = queue?.name || "Missing queue";
+      els.timerDisplay.textContent = secondsPerApp ? formatDuration(remaining) : "--:--";
+      els.timerDisplay.classList.toggle("overdue", remaining < 0);
+      els.timerStatus.textContent = isPaused
+        ? "Productivity paused. Timer is not counting break time. Tiny mercy, really."
+        : remaining >= 0
+          ? `Target pace: one app every ${Math.round(secondsPerApp / 60)} minutes.`
+          : `Over target by ${formatDuration(Math.abs(remaining))}.`;
+      els.timerProgress.style.width = `${progress}%`;
+    }
+
+    function renderPauseState() {
+      if (state.activePause) {
+        els.pausePill.textContent = `Paused since ${formatClock(state.activePause.start)}`;
+        els.pausePill.className = "pill warn";
+      } else {
+        els.pausePill.textContent = "Running";
+        els.pausePill.className = "pill good";
+      }
+    }
+
+    function renderAll() {
+      renderQueueOptions();
+      renderQueues();
+      renderSegments();
+      renderActivityLog();
+      renderStats();
+      renderBreakdown();
+      renderCurrentSegmentDetails();
+      renderPauseState();
+      renderTimer();
+      saveState();
+    }
+
+    function addQueue() {
+      const name = els.queueName.value.trim();
+      const rate = Number(els.queueRate.value);
+
+      if (!name || !rate || rate <= 0) return alert("Enter a queue name and a valid apps-per-hour expectation.");
+
+      state.queues.push({ id: crypto.randomUUID(), name, rate });
+      els.queueName.value = "";
+      els.queueRate.value = "";
+      logActivity("settings", `Added queue ${name} at ${rate} apps/hr.`);
+      renderAll();
+    }
+
+    function addSegment() {
+      const queueId = els.segmentQueue.value;
+      const start = els.segmentStart.value;
+      const end = els.segmentEnd.value;
+
+      if (!queueId || !start || !end) return alert("Choose a queue, start time, and end time.");
+      if (minutesFromTime(end) <= minutesFromTime(start)) return alert("End time must be after start time. Time remains annoyingly linear.");
+
+      const queue = getQueue(queueId);
+      state.segments.push({ id: crypto.randomUUID(), queueId, start, end });
+      sortSegments(false);
+      logActivity("plan", `Added ${queue?.name || "queue"} segment from ${start} to ${end}.`);
+      renderAll();
+    }
+
+    function sortSegments(shouldLog = true) {
+      state.segments.sort((a, b) => minutesFromTime(a.start) - minutesFromTime(b.start));
+      if (shouldLog) logActivity("plan", "Sorted queue segments.");
+    }
+
+    function completeApp() {
+      const segment = getCurrentSegment();
+      if (!segment) return alert("No active segment selected. Assign yourself a queue first, because apparently context matters.");
+
+      const queue = getQueue(segment.queueId);
+      state.completions.push({
+        id: crypto.randomUUID(),
+        at: new Date().toISOString(),
+        queueId: segment.queueId,
+        segmentId: segment.id
+      });
+      resetCurrentTimer();
+      logActivity("complete", `Completed app in ${queue?.name || "selected queue"}.`);
+      renderAll();
+    }
+
+    function pauseProductivity() {
+      if (state.activePause) return;
+      state.activePause = { id: crypto.randomUUID(), start: new Date().toISOString() };
+      state.pauses.push(state.activePause);
+      logActivity("pause", "Paused productivity.");
+      renderAll();
+    }
+
+    function resumeProductivity() {
+      if (!state.activePause) return;
+      const pause = state.pauses.find(item => item.id === state.activePause.id);
+      if (pause) pause.end = new Date().toISOString();
+      state.activePause = null;
+      logActivity("resume", "Resumed productivity.");
+      renderAll();
+    }
+
+    function saveSnapshot() {
+      state.startingSnapshot = {
+        at: new Date().toISOString(),
+        queues: structuredClone(state.queues),
+        segments: structuredClone(state.segments),
+        expectedFullDay: getExpectedFullDay()
+      };
+      logActivity("snapshot", "Saved current plan as start-of-day snapshot.");
+      renderAll();
+    }
+
+    function showReview() {
+      const startExpected = state.startingSnapshot?.expectedFullDay ?? null;
+      const currentExpected = getExpectedFullDay();
+      const completed = state.completions.length;
+      const currentVariance = completed - currentExpected;
+      const snapshotTime = state.startingSnapshot ? formatClock(state.startingSnapshot.at) : "Not saved";
+
+      const startSegmentsHtml = state.startingSnapshot?.segments?.length
+        ? state.startingSnapshot.segments.map(segment => {
+          const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
+          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${segment.end}</span><span>${getSnapshotSegmentExpected(segment).toFixed(1)} apps</span></div>`;
+        }).join("")
+        : `<p class="subtle">No start snapshot saved.</p>`;
+
+      const currentSegmentsHtml = state.segments.length
+        ? state.segments.map(segment => {
+          const queue = getQueue(segment.queueId);
+          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${segment.end}</span><span>${getSegmentExpectedApps(segment).toFixed(1)} apps</span></div>`;
+        }).join("")
+        : `<p class="subtle">No current plan segments.</p>`;
+
+      els.reviewContent.innerHTML = `
+        <section class="stats-grid">
+          <article class="stat"><div class="value">${completed}</div><div class="label">Completed today</div></article>
+          <article class="stat"><div class="value">${currentExpected.toFixed(1)}</div><div class="label">Current expected total</div></article>
+          <article class="stat ${currentVariance >= 0 ? "good" : "bad"}"><div class="value">${currentVariance >= 0 ? "+" : ""}${currentVariance.toFixed(1)}</div><div class="label">Final variance</div></article>
+          <article class="stat"><div class="value">${startExpected === null ? "--" : startExpected.toFixed(1)}</div><div class="label">Start expected total</div></article>
+        </section>
+
+        <section class="panel">
+          <h3>Start-of-day plan · ${snapshotTime}</h3>
+          <div class="table-like">${startSegmentsHtml}</div>
+        </section>
+
+        <section class="panel">
+          <h3>Current / end-of-day plan</h3>
+          <div class="table-like">${currentSegmentsHtml}</div>
+        </section>
+      `;
+
+      els.reviewDialog.showModal();
+    }
+
+    function getSnapshotSegmentExpected(segment) {
+      const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
+      if (!queue) return 0;
+      const minutes = Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
+      return (minutes / 60) * Number(queue.rate || 0);
+    }
+
+    function resetDay() {
+      const confirmed = confirm("Reset today’s segments, completions, pauses, logs, and snapshot? Queue settings will be kept.");
+      if (!confirmed) return;
+
+      state.segments = [];
+      state.completions = [];
+      state.pauses = [];
+      state.activePause = null;
+      state.activityLog = [];
+      state.startingSnapshot = null;
+      state.timerStartedAt = null;
+      state.selectedSegmentId = null;
+      renderAll();
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    document.addEventListener("click", event => {
+      const editQueueId = event.target.dataset.editQueue;
+      const deleteQueueId = event.target.dataset.deleteQueue;
+      const selectSegmentId = event.target.dataset.selectSegment;
+      const editSegmentId = event.target.dataset.editSegment;
+      const deleteSegmentId = event.target.dataset.deleteSegment;
+
+      if (editQueueId) {
+        const queue = getQueue(editQueueId);
+        if (!queue) return;
+        const name = prompt("Queue name", queue.name);
+        if (!name) return;
+        const rate = Number(prompt("Apps per hour", queue.rate));
+        if (!rate || rate <= 0) return alert("Rate must be a positive number.");
+        queue.name = name.trim();
+        queue.rate = rate;
+        logActivity("settings", `Updated queue ${queue.name} to ${rate} apps/hr.`);
+        renderAll();
+      }
+
+      if (deleteQueueId) {
+        const queue = getQueue(deleteQueueId);
+        const inUse = state.segments.some(segment => segment.queueId === deleteQueueId);
+        if (inUse) return alert("This queue is used in today’s plan. Delete or edit those segments first.");
+        state.queues = state.queues.filter(queue => queue.id !== deleteQueueId);
+        logActivity("settings", `Deleted queue ${queue?.name || "queue"}.`);
+        renderAll();
+      }
+
+      if (selectSegmentId) {
+        state.selectedSegmentId = selectSegmentId;
+        resetCurrentTimer();
+        logActivity("plan", "Manually selected active segment.");
+        renderAll();
+      }
+
+      if (editSegmentId) {
+        const segment = state.segments.find(item => item.id === editSegmentId);
+        if (!segment) return;
+        const start = prompt("Start time HH:MM", segment.start);
+        const end = prompt("End time HH:MM", segment.end);
+        if (!start || !end) return;
+        if (minutesFromTime(end) <= minutesFromTime(start)) return alert("End time must be after start time.");
+        segment.start = start;
+        segment.end = end;
+        sortSegments(false);
+        logActivity("plan", `Updated segment to ${start}-${end}.`);
+        renderAll();
+      }
+
+      if (deleteSegmentId) {
+        state.segments = state.segments.filter(segment => segment.id !== deleteSegmentId);
+        if (state.selectedSegmentId === deleteSegmentId) state.selectedSegmentId = null;
+        logActivity("plan", "Deleted segment from plan.");
+        renderAll();
+      }
+    });
+
+    els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
+    els.addQueueBtn.addEventListener("click", addQueue);
+    els.addSegmentBtn.addEventListener("click", addSegment);
+    els.sortSegmentsBtn.addEventListener("click", () => { sortSegments(); renderAll(); });
+    els.completeAppBtn.addEventListener("click", completeApp);
+    els.pauseBtn.addEventListener("click", pauseProductivity);
+    els.resumeBtn.addEventListener("click", resumeProductivity);
+    els.snapshotBtn.addEventListener("click", saveSnapshot);
+    els.endDayBtn.addEventListener("click", showReview);
+    els.resetBtn.addEventListener("click", resetDay);
+
+    tickHandle = setInterval(() => {
+      renderTimer();
+      renderStats();
+      renderCurrentSegmentDetails();
+      renderPauseState();
+    }, 1000);
+
+    renderAll();
+  </script></body>
+  </html>
