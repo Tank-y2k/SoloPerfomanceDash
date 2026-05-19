@@ -19,9 +19,7 @@
       --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
       --radius: 18px;
       --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }* {
-  box-sizing: border-box;
-}
+    }* { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -31,18 +29,8 @@ body {
   color: var(--text);
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
-}
-
-button {
-  border: 0;
-  cursor: pointer;
-  color: inherit;
-}
+button, input, select, textarea { font: inherit; }
+button { border: 0; cursor: pointer; color: inherit; }
 
 .app-shell {
   width: min(1500px, calc(100% - 32px));
@@ -92,24 +80,15 @@ button {
   padding: 18px;
 }
 
-.panel h2,
-.panel h3 {
+.panel h2, .panel h3 {
   margin: 0 0 12px;
   letter-spacing: -0.02em;
 }
 
-.panel h2 {
-  font-size: 1.15rem;
-}
+.panel h2 { font-size: 1.15rem; }
+.panel h3 { font-size: 1rem; }
 
-.panel h3 {
-  font-size: 1rem;
-}
-
-.stack {
-  display: grid;
-  gap: 14px;
-}
+.stack { display: grid; gap: 14px; }
 
 .row {
   display: flex;
@@ -118,9 +97,7 @@ button {
   flex-wrap: wrap;
 }
 
-.row.between {
-  justify-content: space-between;
-}
+.row.between { justify-content: space-between; }
 
 .field {
   display: grid;
@@ -136,9 +113,7 @@ label {
   letter-spacing: 0.08em;
 }
 
-input,
-select,
-textarea {
+input, select, textarea {
   width: 100%;
   border: 1px solid var(--border);
   background: var(--panel-soft);
@@ -148,16 +123,15 @@ textarea {
   outline: none;
 }
 
-input:focus,
-select:focus,
-textarea:focus {
-  border-color: var(--accent-strong);
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
+input[type="color"] {
+  height: 43px;
+  padding: 4px;
+  cursor: pointer;
 }
 
-textarea {
-  min-height: 72px;
-  resize: vertical;
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.18);
 }
 
 .btn {
@@ -231,13 +205,8 @@ textarea {
   line-height: 1;
 }
 
-.timer.overdue {
-  color: var(--danger);
-}
-
-.timer-status {
-  color: var(--muted);
-}
+.timer.overdue { color: var(--danger); }
+.timer-status { color: var(--muted); }
 
 .active-queue {
   font-size: 1.1rem;
@@ -249,6 +218,10 @@ textarea {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
+}
+
+.stats-grid.four {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .stat {
@@ -270,21 +243,11 @@ textarea {
   margin-top: 2px;
 }
 
-.stat.good .value {
-  color: var(--success);
-}
+.stat.good .value { color: var(--success); }
+.stat.bad .value { color: var(--danger); }
+.stat.warn .value { color: var(--warning); }
 
-.stat.bad .value {
-  color: var(--danger);
-}
-
-.stat.warn .value {
-  color: var(--warning);
-}
-
-.queue-list,
-.segment-list,
-.log-list {
+.queue-list, .segment-list, .log-list {
   display: grid;
   gap: 10px;
   max-height: 420px;
@@ -292,23 +255,29 @@ textarea {
   padding-right: 4px;
 }
 
-.queue-card,
-.segment-card,
-.log-card {
+.queue-card, .segment-card, .log-card {
   border: 1px solid var(--border);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.025);
   padding: 12px;
+  position: relative;
+  overflow: hidden;
 }
 
-.queue-card.active,
-.segment-card.active {
+.queue-card::before, .segment-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 5px;
+  background: var(--queue-color, var(--accent-strong));
+}
+
+.queue-card.active, .segment-card.active {
   border-color: rgba(94, 234, 212, 0.7);
   background: rgba(94, 234, 212, 0.07);
 }
 
-.queue-card-title,
-.segment-title {
+.queue-card-title, .segment-title {
   font-weight: 800;
   display: flex;
   justify-content: space-between;
@@ -316,9 +285,7 @@ textarea {
   align-items: center;
 }
 
-.queue-meta,
-.segment-meta,
-.log-meta {
+.queue-meta, .segment-meta, .log-meta {
   color: var(--muted);
   font-size: 0.86rem;
   margin-top: 4px;
@@ -354,6 +321,15 @@ textarea {
   background: rgba(250, 204, 21, 0.1);
 }
 
+.swatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  display: inline-block;
+  border: 1px solid rgba(255,255,255,0.28);
+  background: var(--queue-color, var(--accent-strong));
+}
+
 .progress-bar {
   width: 100%;
   height: 10px;
@@ -370,10 +346,23 @@ textarea {
   transition: width 0.2s ease;
 }
 
-.table-like {
-  display: grid;
-  gap: 8px;
+.day-timeline {
+  display: flex;
+  height: 34px;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,0.05);
 }
+
+.timeline-block {
+  min-width: 2px;
+  background: var(--queue-color, var(--accent-strong));
+  opacity: 0.9;
+  position: relative;
+}
+
+.table-like { display: grid; gap: 8px; }
 
 .mini-table-row {
   display: grid;
@@ -384,18 +373,14 @@ textarea {
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.mini-table-row:last-child {
-  border-bottom: 0;
-}
+.mini-table-row:last-child { border-bottom: 0; }
 
 .subtle {
   color: var(--muted);
   font-size: 0.9rem;
 }
 
-.hidden {
-  display: none !important;
-}
+.hidden { display: none !important; }
 
 dialog {
   border: 1px solid var(--border);
@@ -403,7 +388,7 @@ dialog {
   color: var(--text);
   border-radius: 22px;
   padding: 0;
-  width: min(720px, calc(100vw - 28px));
+  width: min(760px, calc(100vw - 28px));
   box-shadow: var(--shadow);
 }
 
@@ -412,9 +397,7 @@ dialog::backdrop {
   backdrop-filter: blur(4px);
 }
 
-.modal-inner {
-  padding: 20px;
-}
+.modal-inner { padding: 20px; }
 
 .modal-header {
   display: flex;
@@ -424,9 +407,7 @@ dialog::backdrop {
   margin-bottom: 16px;
 }
 
-.modal-header h2 {
-  margin: 0;
-}
+.modal-header h2 { margin: 0; }
 
 .footer-note {
   margin-top: 16px;
@@ -435,43 +416,18 @@ dialog::backdrop {
 }
 
 @media (max-width: 1150px) {
-  .grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .main-panel {
-    grid-column: 1 / -1;
-    order: -1;
-  }
+  .grid { grid-template-columns: 1fr 1fr; }
+  .main-panel { grid-column: 1 / -1; order: -1; }
+  .stats-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
-  .app-shell {
-    width: min(100% - 20px, 1500px);
-    padding-top: 14px;
-  }
-
-  .topbar,
-  .grid {
-    grid-template-columns: 1fr;
-    display: grid;
-  }
-
-  .top-actions {
-    justify-content: stretch;
-  }
-
-  .top-actions .btn {
-    flex: 1;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .mini-table-row {
-    grid-template-columns: 1fr;
-  }
+  .app-shell { width: min(100% - 20px, 1500px); padding-top: 14px; }
+  .topbar, .grid { grid-template-columns: 1fr; display: grid; }
+  .top-actions { justify-content: stretch; }
+  .top-actions .btn { flex: 1; }
+  .stats-grid, .stats-grid.four { grid-template-columns: 1fr; }
+  .mini-table-row { grid-template-columns: 1fr; }
 }
 
   </style>
@@ -481,7 +437,7 @@ dialog::backdrop {
     <header class="topbar">
       <section class="title-block">
         <h1>Queue Performance Dashboard</h1>
-        <p>A solo day planner, live productivity timer, and tiny judgement machine for queue work.</p>
+        <p>A solo day planner, live productivity timer, queue overview, and tiny judgement machine for queue work.</p>
       </section>
       <section class="top-actions">
         <button class="btn" id="settingsBtn">Queue Settings</button>
@@ -493,7 +449,7 @@ dialog::backdrop {
   <aside class="panel stack">
     <div>
       <h2>Today’s Queue Plan</h2>
-      <p class="subtle">Add the queue blocks Resource Planning assigns you. Update them whenever the grand spreadsheet gods change their mind.</p>
+      <p class="subtle">Add queue blocks, including non-productive blocks for breaks, lunch, meetings, or whatever delightful productivity void appears next.</p>
     </div>
 
     <div class="row">
@@ -531,26 +487,42 @@ dialog::backdrop {
     </div>
 
     <div class="row between">
-      <div class="row">
+      <div class="row" style="flex: 1;">
+        <div class="field" style="max-width: 280px;">
+          <label for="completionQueue">Completed app queue</label>
+          <select id="completionQueue"></select>
+        </div>
         <button class="btn success" id="completeAppBtn">App Completed</button>
-        <button class="btn warning" id="pauseBtn">Pause Productivity</button>
-        <button class="btn" id="resumeBtn">Resume</button>
       </div>
-      <div class="pill" id="pausePill">Running</div>
     </div>
+
+    <section class="stack">
+      <h2>Day Overview</h2>
+      <div class="day-timeline" id="dayTimeline"></div>
+      <div class="stats-grid four">
+        <article class="stat">
+          <div class="value" id="productiveHours">0.0h</div>
+          <div class="label">Productive planned time</div>
+        </article>
+        <article class="stat">
+          <div class="value" id="nonProductiveHours">0.0h</div>
+          <div class="label">Non-productive planned time</div>
+        </article>
+        <article class="stat">
+          <div class="value" id="completedCount">0</div>
+          <div class="label">Apps completed</div>
+        </article>
+        <article class="stat" id="paceStat">
+          <div class="value" id="paceValue">0.0</div>
+          <div class="label">Ahead / behind pace</div>
+        </article>
+      </div>
+    </section>
 
     <div class="stats-grid">
       <article class="stat">
-        <div class="value" id="completedCount">0</div>
-        <div class="label">Apps completed</div>
-      </article>
-      <article class="stat">
         <div class="value" id="expectedCount">0.0</div>
         <div class="label">Expected by now</div>
-      </article>
-      <article class="stat" id="paceStat">
-        <div class="value" id="paceValue">0.0</div>
-        <div class="label">Ahead / behind pace</div>
       </article>
       <article class="stat">
         <div class="value" id="dayExpectedCount">0.0</div>
@@ -572,7 +544,7 @@ dialog::backdrop {
   <aside class="panel stack">
     <div>
       <h2>Live Activity Log</h2>
-      <p class="subtle">Completions, pauses, resumes, and planning changes. The receipts, because memory is a liar.</p>
+      <p class="subtle">Completions and planning changes. The receipts, because memory is a liar with branding.</p>
     </div>
     <div class="log-list" id="activityLog"></div>
   </aside>
@@ -593,6 +565,10 @@ dialog::backdrop {
         <label for="queueRate">Apps per hour</label>
         <input id="queueRate" type="number" min="0" step="0.1" placeholder="e.g. 4" />
       </div>
+      <div class="field" style="max-width: 120px;">
+        <label for="queueColor">Colour</label>
+        <input id="queueColor" type="color" value="#14b8a6" />
+      </div>
       <button class="btn primary" id="addQueueBtn" type="button">Add Queue</button>
     </div>
 
@@ -610,18 +586,18 @@ dialog::backdrop {
       <p class="footer-note">Start plan is captured with “Save Current Plan”. Current plan reflects whatever chaos Resource Planning later inflicted.</p>
     </form>
   </dialog>  <script>
-    const STORAGE_KEY = "queuePerformanceDashboard.v1";
+    const STORAGE_KEY = "queuePerformanceDashboard.v2";
+    const NON_PRODUCTIVE_NAME = "Non-productive";
 
     const defaultState = {
       queues: [
-        { id: crypto.randomUUID(), name: "BCA", rate: 4 },
-        { id: crypto.randomUUID(), name: "Onboarding", rate: 3 },
-        { id: crypto.randomUUID(), name: "IDV", rate: 5 }
+        { id: crypto.randomUUID(), name: NON_PRODUCTIVE_NAME, rate: 0, color: "#71717a", locked: true },
+        { id: crypto.randomUUID(), name: "BCA", rate: 4, color: "#14b8a6" },
+        { id: crypto.randomUUID(), name: "Onboarding", rate: 3, color: "#60a5fa" },
+        { id: crypto.randomUUID(), name: "IDV", rate: 5, color: "#c084fc" }
       ],
       segments: [],
       completions: [],
-      pauses: [],
-      activePause: null,
       activityLog: [],
       startingSnapshot: null,
       timerStartedAt: null,
@@ -629,7 +605,7 @@ dialog::backdrop {
     };
 
     let state = loadState();
-    let tickHandle = null;
+    ensureNonProductiveQueue();
 
     const els = {
       settingsBtn: document.getElementById("settingsBtn"),
@@ -640,6 +616,7 @@ dialog::backdrop {
       reviewDialog: document.getElementById("reviewDialog"),
       queueName: document.getElementById("queueName"),
       queueRate: document.getElementById("queueRate"),
+      queueColor: document.getElementById("queueColor"),
       addQueueBtn: document.getElementById("addQueueBtn"),
       queueList: document.getElementById("queueList"),
       segmentQueue: document.getElementById("segmentQueue"),
@@ -652,10 +629,8 @@ dialog::backdrop {
       timerDisplay: document.getElementById("timerDisplay"),
       timerStatus: document.getElementById("timerStatus"),
       timerProgress: document.getElementById("timerProgress"),
+      completionQueue: document.getElementById("completionQueue"),
       completeAppBtn: document.getElementById("completeAppBtn"),
-      pauseBtn: document.getElementById("pauseBtn"),
-      resumeBtn: document.getElementById("resumeBtn"),
-      pausePill: document.getElementById("pausePill"),
       completedCount: document.getElementById("completedCount"),
       expectedCount: document.getElementById("expectedCount"),
       dayExpectedCount: document.getElementById("dayExpectedCount"),
@@ -664,7 +639,10 @@ dialog::backdrop {
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       breakdownList: document.getElementById("breakdownList"),
       activityLog: document.getElementById("activityLog"),
-      reviewContent: document.getElementById("reviewContent")
+      reviewContent: document.getElementById("reviewContent"),
+      dayTimeline: document.getElementById("dayTimeline"),
+      productiveHours: document.getElementById("productiveHours"),
+      nonProductiveHours: document.getElementById("nonProductiveHours")
     };
 
     function loadState() {
@@ -682,13 +660,26 @@ dialog::backdrop {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    function logActivity(type, text) {
-      state.activityLog.unshift({
+    function ensureNonProductiveQueue() {
+      const existing = state.queues.find(queue => queue.name.toLowerCase() === NON_PRODUCTIVE_NAME.toLowerCase());
+      if (existing) {
+        existing.rate = 0;
+        existing.locked = true;
+        existing.color = existing.color || "#71717a";
+        return;
+      }
+
+      state.queues.unshift({
         id: crypto.randomUUID(),
-        type,
-        text,
-        at: new Date().toISOString()
+        name: NON_PRODUCTIVE_NAME,
+        rate: 0,
+        color: "#71717a",
+        locked: true
       });
+    }
+
+    function logActivity(type, text) {
+      state.activityLog.unshift({ id: crypto.randomUUID(), type, text, at: new Date().toISOString() });
       state.activityLog = state.activityLog.slice(0, 80);
       saveState();
     }
@@ -696,12 +687,6 @@ dialog::backdrop {
     function minutesFromTime(time) {
       const [hours, minutes] = time.split(":").map(Number);
       return hours * 60 + minutes;
-    }
-
-    function timeFromMinutes(totalMinutes) {
-      const hours = Math.floor(totalMinutes / 60).toString().padStart(2, "0");
-      const minutes = Math.floor(totalMinutes % 60).toString().padStart(2, "0");
-      return `${hours}:${minutes}`;
     }
 
     function nowMinutes() {
@@ -721,8 +706,12 @@ dialog::backdrop {
       return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
 
-    function getQueue(id) {
-      return state.queues.find(queue => queue.id === id);
+    function getQueue(id, queues = state.queues) {
+      return queues.find(queue => queue.id === id);
+    }
+
+    function isProductiveQueue(queue) {
+      return Number(queue?.rate || 0) > 0;
     }
 
     function getCurrentSegment() {
@@ -739,15 +728,17 @@ dialog::backdrop {
       }) || null;
     }
 
+    function getSegmentMinutes(segment) {
+      return Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
+    }
+
     function getSegmentExpectedApps(segment, untilMinutes = null) {
       const queue = getQueue(segment.queueId);
       if (!queue) return 0;
-
       const start = minutesFromTime(segment.start);
       const end = minutesFromTime(segment.end);
       const effectiveEnd = untilMinutes === null ? end : Math.min(Math.max(untilMinutes, start), end);
       const minutes = Math.max(0, effectiveEnd - start);
-
       return (minutes / 60) * Number(queue.rate || 0);
     }
 
@@ -756,24 +747,22 @@ dialog::backdrop {
       return state.segments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment, current), 0);
     }
 
-    function getExpectedFullDay(segments = state.segments) {
+    function getExpectedFullDay(segments = state.segments, queues = state.queues) {
       return segments.reduce((sum, segment) => {
-        const queue = state.queues.find(q => q.id === segment.queueId);
+        const queue = getQueue(segment.queueId, queues);
         if (!queue) return sum;
-        const minutes = Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
-        return sum + (minutes / 60) * Number(queue.rate || 0);
+        return sum + (getSegmentMinutes(segment) / 60) * Number(queue.rate || 0);
       }, 0);
     }
 
-    function getPauseSecondsBetween(startIso, endIso) {
-      const start = new Date(startIso).getTime();
-      const end = new Date(endIso).getTime();
-      return state.pauses.reduce((sum, pause) => {
-        const pauseStart = new Date(pause.start).getTime();
-        const pauseEnd = pause.end ? new Date(pause.end).getTime() : Date.now();
-        const overlap = Math.max(0, Math.min(end, pauseEnd) - Math.max(start, pauseStart));
-        return sum + overlap / 1000;
+    function getPlannedHours(productiveOnly) {
+      const minutes = state.segments.reduce((sum, segment) => {
+        const queue = getQueue(segment.queueId);
+        const productive = isProductiveQueue(queue);
+        if (productiveOnly === productive) return sum + getSegmentMinutes(segment);
+        return sum;
       }, 0);
+      return minutes / 60;
     }
 
     function resetCurrentTimer() {
@@ -782,22 +771,34 @@ dialog::backdrop {
     }
 
     function renderQueueOptions() {
-      els.segmentQueue.innerHTML = state.queues
+      const options = state.queues
         .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)} - ${queue.rate} apps/hr</option>`)
         .join("");
+      els.segmentQueue.innerHTML = options;
+
+      const currentSegment = getCurrentSegment();
+      els.completionQueue.innerHTML = state.queues
+        .filter(queue => isProductiveQueue(queue))
+        .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)}</option>`)
+        .join("");
+
+      if (currentSegment) {
+        const currentQueue = getQueue(currentSegment.queueId);
+        if (isProductiveQueue(currentQueue)) els.completionQueue.value = currentSegment.queueId;
+      }
     }
 
     function renderQueues() {
       els.queueList.innerHTML = state.queues.map(queue => `
-        <article class="queue-card">
+        <article class="queue-card" style="--queue-color: ${queue.color || "#14b8a6"}">
           <div class="queue-card-title">
-            <span>${escapeHtml(queue.name)}</span>
+            <span class="row" style="gap: 8px;"><span class="swatch" style="--queue-color: ${queue.color || "#14b8a6"}"></span>${escapeHtml(queue.name)}</span>
             <span class="pill">${queue.rate} apps/hr</span>
           </div>
-          <div class="queue-meta">One app every ${queue.rate > 0 ? Math.round(60 / queue.rate) : "--"} minutes.</div>
+          <div class="queue-meta">${queue.rate > 0 ? `One app every ${Math.round(60 / queue.rate)} minutes.` : "No productivity target. Breaks, lunch, meetings, and other sanctioned voids."}</div>
           <div class="row" style="margin-top: 10px;">
             <button class="btn small" data-edit-queue="${queue.id}">Edit</button>
-            <button class="btn small danger" data-delete-queue="${queue.id}">Delete</button>
+            ${queue.locked ? "" : `<button class="btn small danger" data-delete-queue="${queue.id}">Delete</button>`}
           </div>
         </article>
       `).join("");
@@ -811,7 +812,7 @@ dialog::backdrop {
         const expected = getSegmentExpectedApps(segment);
         const isActive = currentSegment && currentSegment.id === segment.id;
         return `
-          <article class="segment-card ${isActive ? "active" : ""}">
+          <article class="segment-card ${isActive ? "active" : ""}" style="--queue-color: ${queue?.color || "#14b8a6"}">
             <div class="segment-title">
               <span>${escapeHtml(queue?.name || "Missing queue")}</span>
               <span class="pill ${isActive ? "good" : ""}">${isActive ? "Active" : `${expected.toFixed(1)} apps`}</span>
@@ -848,23 +849,45 @@ dialog::backdrop {
       els.expectedCount.textContent = expectedByNow.toFixed(1);
       els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
       els.paceValue.textContent = `${pace >= 0 ? "+" : ""}${pace.toFixed(1)}`;
+      els.productiveHours.textContent = `${getPlannedHours(true).toFixed(1)}h`;
+      els.nonProductiveHours.textContent = `${getPlannedHours(false).toFixed(1)}h`;
+
       els.paceStat.classList.remove("good", "bad", "warn");
       els.paceStat.classList.add(pace >= 0.25 ? "good" : pace <= -0.25 ? "bad" : "warn");
+    }
+
+    function renderDayTimeline() {
+      if (!state.segments.length) {
+        els.dayTimeline.innerHTML = `<div class="timeline-block" style="width: 100%; background: transparent;"></div>`;
+        return;
+      }
+
+      const first = Math.min(...state.segments.map(segment => minutesFromTime(segment.start)));
+      const last = Math.max(...state.segments.map(segment => minutesFromTime(segment.end)));
+      const total = Math.max(1, last - first);
+
+      els.dayTimeline.innerHTML = state.segments.map(segment => {
+        const queue = getQueue(segment.queueId);
+        const width = (getSegmentMinutes(segment) / total) * 100;
+        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${segment.end}`;
+        return `<div class="timeline-block" title="${escapeHtml(title)}" style="width: ${width}%; --queue-color: ${queue?.color || "#14b8a6"};"></div>`;
+      }).join("");
     }
 
     function renderBreakdown() {
       const byQueue = state.queues.map(queue => {
         const queueSegments = state.segments.filter(segment => segment.queueId === queue.id);
         const expected = queueSegments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment), 0);
+        const plannedHours = queueSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0) / 60;
         const completed = state.completions.filter(app => app.queueId === queue.id).length;
-        return { queue, expected, completed, variance: completed - expected };
-      }).filter(row => row.expected > 0 || row.completed > 0);
+        return { queue, expected, plannedHours, completed, variance: completed - expected };
+      }).filter(row => row.expected > 0 || row.completed > 0 || row.plannedHours > 0);
 
       els.breakdownList.innerHTML = byQueue.length
         ? byQueue.map(row => `
           <div class="mini-table-row">
-            <strong>${escapeHtml(row.queue.name)}</strong>
-            <span class="subtle">${row.completed} done / ${row.expected.toFixed(1)} expected</span>
+            <strong class="row" style="gap: 8px;"><span class="swatch" style="--queue-color: ${row.queue.color || "#14b8a6"}"></span>${escapeHtml(row.queue.name)}</strong>
+            <span class="subtle">${row.plannedHours.toFixed(1)}h · ${row.completed} done / ${row.expected.toFixed(1)} expected</span>
             <span class="pill ${row.variance >= 0 ? "good" : "bad"}">${row.variance >= 0 ? "+" : ""}${row.variance.toFixed(1)}</span>
           </div>
         `).join("")
@@ -884,14 +907,12 @@ dialog::backdrop {
       els.currentSegmentDetails.innerHTML = `
         <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
         ${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
-        ${completedInSegment} completed during this segment.
+        ${completedInSegment} completed while this segment was active.
       `;
     }
 
     function renderTimer() {
       const segment = getCurrentSegment();
-      const isPaused = Boolean(state.activePause);
-
       if (!segment) {
         els.activeQueueName.textContent = "No active queue";
         els.timerDisplay.textContent = "--:--";
@@ -902,36 +923,31 @@ dialog::backdrop {
       }
 
       const queue = getQueue(segment.queueId);
-      const secondsPerApp = queue && queue.rate > 0 ? 3600 / queue.rate : 0;
+      const productive = isProductiveQueue(queue);
 
+      if (!productive) {
+        els.activeQueueName.textContent = queue?.name || NON_PRODUCTIVE_NAME;
+        els.timerDisplay.textContent = "No target";
+        els.timerDisplay.classList.remove("overdue");
+        els.timerStatus.textContent = "Non-productive segment active. No app timer or expectation applies.";
+        els.timerProgress.style.width = "0%";
+        return;
+      }
+
+      const secondsPerApp = 3600 / Number(queue.rate);
       if (!state.timerStartedAt) resetCurrentTimer();
 
-      const start = new Date(state.timerStartedAt).getTime();
-      const elapsedRaw = (Date.now() - start) / 1000;
-      const pauseSeconds = getPauseSecondsBetween(state.timerStartedAt, new Date().toISOString());
-      const productiveElapsed = isPaused ? Math.max(0, elapsedRaw - pauseSeconds) : Math.max(0, elapsedRaw - pauseSeconds);
-      const remaining = secondsPerApp - productiveElapsed;
-      const progress = secondsPerApp ? Math.min(100, (productiveElapsed / secondsPerApp) * 100) : 0;
+      const elapsed = Math.max(0, (Date.now() - new Date(state.timerStartedAt).getTime()) / 1000);
+      const remaining = secondsPerApp - elapsed;
+      const progress = Math.min(100, (elapsed / secondsPerApp) * 100);
 
       els.activeQueueName.textContent = queue?.name || "Missing queue";
-      els.timerDisplay.textContent = secondsPerApp ? formatDuration(remaining) : "--:--";
+      els.timerDisplay.textContent = formatDuration(remaining);
       els.timerDisplay.classList.toggle("overdue", remaining < 0);
-      els.timerStatus.textContent = isPaused
-        ? "Productivity paused. Timer is not counting break time. Tiny mercy, really."
-        : remaining >= 0
-          ? `Target pace: one app every ${Math.round(secondsPerApp / 60)} minutes.`
-          : `Over target by ${formatDuration(Math.abs(remaining))}.`;
+      els.timerStatus.textContent = remaining >= 0
+        ? `Target pace: one app every ${Math.round(secondsPerApp / 60)} minutes.`
+        : `Over target by ${formatDuration(Math.abs(remaining))}.`;
       els.timerProgress.style.width = `${progress}%`;
-    }
-
-    function renderPauseState() {
-      if (state.activePause) {
-        els.pausePill.textContent = `Paused since ${formatClock(state.activePause.start)}`;
-        els.pausePill.className = "pill warn";
-      } else {
-        els.pausePill.textContent = "Running";
-        els.pausePill.className = "pill good";
-      }
     }
 
     function renderAll() {
@@ -940,9 +956,9 @@ dialog::backdrop {
       renderSegments();
       renderActivityLog();
       renderStats();
+      renderDayTimeline();
       renderBreakdown();
       renderCurrentSegmentDetails();
-      renderPauseState();
       renderTimer();
       saveState();
     }
@@ -950,10 +966,11 @@ dialog::backdrop {
     function addQueue() {
       const name = els.queueName.value.trim();
       const rate = Number(els.queueRate.value);
+      const color = els.queueColor.value || "#14b8a6";
 
-      if (!name || !rate || rate <= 0) return alert("Enter a queue name and a valid apps-per-hour expectation.");
+      if (!name || Number.isNaN(rate) || rate < 0) return alert("Enter a queue name and a valid apps-per-hour expectation. Zero is allowed for non-productive queues.");
 
-      state.queues.push({ id: crypto.randomUUID(), name, rate });
+      state.queues.push({ id: crypto.randomUUID(), name, rate, color });
       els.queueName.value = "";
       els.queueRate.value = "";
       logActivity("settings", `Added queue ${name} at ${rate} apps/hr.`);
@@ -981,35 +998,19 @@ dialog::backdrop {
     }
 
     function completeApp() {
-      const segment = getCurrentSegment();
-      if (!segment) return alert("No active segment selected. Assign yourself a queue first, because apparently context matters.");
+      const queueId = els.completionQueue.value;
+      const queue = getQueue(queueId);
+      if (!queue || !isProductiveQueue(queue)) return alert("Choose a productive queue for the completed app.");
 
-      const queue = getQueue(segment.queueId);
+      const segment = getCurrentSegment();
       state.completions.push({
         id: crypto.randomUUID(),
         at: new Date().toISOString(),
-        queueId: segment.queueId,
-        segmentId: segment.id
+        queueId,
+        segmentId: segment?.id || null
       });
       resetCurrentTimer();
-      logActivity("complete", `Completed app in ${queue?.name || "selected queue"}.`);
-      renderAll();
-    }
-
-    function pauseProductivity() {
-      if (state.activePause) return;
-      state.activePause = { id: crypto.randomUUID(), start: new Date().toISOString() };
-      state.pauses.push(state.activePause);
-      logActivity("pause", "Paused productivity.");
-      renderAll();
-    }
-
-    function resumeProductivity() {
-      if (!state.activePause) return;
-      const pause = state.pauses.find(item => item.id === state.activePause.id);
-      if (pause) pause.end = new Date().toISOString();
-      state.activePause = null;
-      logActivity("resume", "Resumed productivity.");
+      logActivity("complete", `Completed app from ${queue.name}.`);
       renderAll();
     }
 
@@ -1052,16 +1053,8 @@ dialog::backdrop {
           <article class="stat ${currentVariance >= 0 ? "good" : "bad"}"><div class="value">${currentVariance >= 0 ? "+" : ""}${currentVariance.toFixed(1)}</div><div class="label">Final variance</div></article>
           <article class="stat"><div class="value">${startExpected === null ? "--" : startExpected.toFixed(1)}</div><div class="label">Start expected total</div></article>
         </section>
-
-        <section class="panel">
-          <h3>Start-of-day plan · ${snapshotTime}</h3>
-          <div class="table-like">${startSegmentsHtml}</div>
-        </section>
-
-        <section class="panel">
-          <h3>Current / end-of-day plan</h3>
-          <div class="table-like">${currentSegmentsHtml}</div>
-        </section>
+        <section class="panel"><h3>Start-of-day plan · ${snapshotTime}</h3><div class="table-like">${startSegmentsHtml}</div></section>
+        <section class="panel"><h3>Current / end-of-day plan</h3><div class="table-like">${currentSegmentsHtml}</div></section>
       `;
 
       els.reviewDialog.showModal();
@@ -1070,18 +1063,14 @@ dialog::backdrop {
     function getSnapshotSegmentExpected(segment) {
       const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
       if (!queue) return 0;
-      const minutes = Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
-      return (minutes / 60) * Number(queue.rate || 0);
+      return (getSegmentMinutes(segment) / 60) * Number(queue.rate || 0);
     }
 
     function resetDay() {
-      const confirmed = confirm("Reset today’s segments, completions, pauses, logs, and snapshot? Queue settings will be kept.");
+      const confirmed = confirm("Reset today’s segments, completions, logs, and snapshot? Queue settings will be kept.");
       if (!confirmed) return;
-
       state.segments = [];
       state.completions = [];
-      state.pauses = [];
-      state.activePause = null;
       state.activityLog = [];
       state.startingSnapshot = null;
       state.timerStartedAt = null;
@@ -1108,18 +1097,21 @@ dialog::backdrop {
       if (editQueueId) {
         const queue = getQueue(editQueueId);
         if (!queue) return;
-        const name = prompt("Queue name", queue.name);
+        const name = queue.locked ? queue.name : prompt("Queue name", queue.name);
         if (!name) return;
-        const rate = Number(prompt("Apps per hour", queue.rate));
-        if (!rate || rate <= 0) return alert("Rate must be a positive number.");
+        const rate = queue.locked ? 0 : Number(prompt("Apps per hour", queue.rate));
+        if (Number.isNaN(rate) || rate < 0) return alert("Rate must be zero or a positive number.");
+        const color = prompt("Queue colour hex code", queue.color || "#14b8a6") || queue.color || "#14b8a6";
         queue.name = name.trim();
         queue.rate = rate;
+        queue.color = color;
         logActivity("settings", `Updated queue ${queue.name} to ${rate} apps/hr.`);
         renderAll();
       }
 
       if (deleteQueueId) {
         const queue = getQueue(deleteQueueId);
+        if (queue?.locked) return alert("The default Non-productive queue cannot be deleted.");
         const inUse = state.segments.some(segment => segment.queueId === deleteQueueId);
         if (inUse) return alert("This queue is used in today’s plan. Delete or edit those segments first.");
         state.queues = state.queues.filter(queue => queue.id !== deleteQueueId);
@@ -1161,19 +1153,17 @@ dialog::backdrop {
     els.addSegmentBtn.addEventListener("click", addSegment);
     els.sortSegmentsBtn.addEventListener("click", () => { sortSegments(); renderAll(); });
     els.completeAppBtn.addEventListener("click", completeApp);
-    els.pauseBtn.addEventListener("click", pauseProductivity);
-    els.resumeBtn.addEventListener("click", resumeProductivity);
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
     els.resetBtn.addEventListener("click", resetDay);
 
-    tickHandle = setInterval(() => {
+    setInterval(() => {
       renderTimer();
       renderStats();
       renderCurrentSegmentDetails();
-      renderPauseState();
+      renderDayTimeline();
     }, 1000);
 
     renderAll();
   </script></body>
-</html>
+  </html>
