@@ -1172,8 +1172,8 @@ dialog::backdrop {
         return;
       }
 
-      const nowIso = nowIso();
-      syncTimerToSegment(segment, nowIso);
+      const currentIso = nowIso();
+      syncTimerToSegment(segment, currentIso);
 
       const queue = getQueue(segment.queueId);
       const productive = isProductiveQueue(queue);
@@ -1267,17 +1267,17 @@ dialog::backdrop {
       if (!uid) return alert("Enter a UID for the completed app.");
 
       const segment = getCurrentSegment();
-      const nowIso = nowIso();
-      const startedAt = state.timerStartedAt || nowIso;
-      const durationSeconds = Math.max(1, (new Date(nowIso).getTime() - new Date(startedAt).getTime()) / 1000);
+      const currentIso = nowIso();
+      const startedAt = state.timerStartedAt || currentIso;
+      const durationSeconds = Math.max(1, (new Date(currentIso).getTime() - new Date(startedAt).getTime()) / 1000);
       const expectedSeconds = getSecondsPerApp(queue);
       const varianceSeconds = expectedSeconds - durationSeconds;
       state.timeBankSeconds += varianceSeconds;
-      clampTimeBankToSegment(segment, nowIso);
+      clampTimeBankToSegment(segment, currentIso);
 
       const completion = {
         id: crypto.randomUUID(),
-        at: nowIso,
+        at: currentIso,
         queueId,
         segmentId: segment?.id || null,
         uid,
