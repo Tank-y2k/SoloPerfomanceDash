@@ -250,7 +250,7 @@ input:focus, select:focus, textarea:focus {
 .queue-list, .segment-list, .log-list {
   display: grid;
   gap: 10px;
-  max-height: 420px;
+  max-height: 340px;
   overflow: auto;
   padding-right: 4px;
 }
@@ -548,8 +548,8 @@ dialog::backdrop {
 
   <aside class="panel stack">
     <div>
-      <h2>Live Activity Log</h2>
-      <p class="subtle">Completions and planning changes. The receipts, because memory is a liar with branding.</p>
+      <h2>Completed Apps</h2>
+      <p class="subtle">App history with UID, duration, efficiency, and delete for mistakes/testing.</p>
     </div>
     <div class="log-list" id="activityLog"></div>
     <div>
@@ -858,15 +858,21 @@ dialog::backdrop {
       }).join("");
     }
 
-    function renderActivityLog() {
-      els.activityLog.innerHTML = state.activityLog.length
-        ? state.activityLog.map(item => `
-          <article class="log-card">
-            <div>${escapeHtml(item.text)}</div>
-            <div class="log-meta">${formatClock(item.at)}</div>
-          </article>
-        `).join("")
-        : `<p class="subtle">No activity yet. Suspiciously peaceful.</p>`;
+    function renderCompletionHistory() {
+      els.completionHistory.innerHTML = state.completions.length
+        ? state.completions.slice().reverse().map(app => {
+          const queue = getQueue(app.queueId);
+          return `
+            <article class="log-card">
+              <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
+              <div class="log-meta" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                <span>${(app.durationSeconds / 60).toFixed(1)} min</span><span>·</span><span>${getCompletionEfficiency(app).toFixed(0)}%</span><span>·</span><span>${formatClock(app.at)}</span>
+              </div>
+              <div class="row" style="margin-top: 8px; justify-content:flex-end;"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
+            </article>
+          `;
+        }).join("")
+        : `<p class="subtle">No completed apps yet.</p>`;
     }
 
 
