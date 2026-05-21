@@ -255,6 +255,8 @@ input:focus, select:focus, textarea:focus {
   padding-right: 4px;
 }
 
+.log-list.single-output { max-height: min(68vh, 640px); }
+
 .queue-card, .segment-card, .log-card {
   border: 1px solid var(--border);
   border-radius: 16px;
@@ -549,14 +551,9 @@ dialog::backdrop {
   <aside class="panel stack">
     <div>
       <h2>Completed Apps</h2>
-      <p class="subtle">App history with UID, duration, efficiency, and delete for mistakes/testing.</p>
-    </div>
-    <div class="log-list" id="activityLog"></div>
-    <div>
-      <h3>Completed Apps</h3>
       <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
     </div>
-    <div class="log-list" id="completionHistory"></div>
+    <div class="log-list single-output" id="completionHistory"></div>
   </aside>
 </section>
 
@@ -602,9 +599,11 @@ dialog::backdrop {
     const defaultState = {
       queues: [
         { id: crypto.randomUUID(), name: NON_PRODUCTIVE_NAME, rate: 0, color: "#71717a", locked: true },
-        { id: crypto.randomUUID(), name: "BCA", rate: 4, color: "#14b8a6" },
-        { id: crypto.randomUUID(), name: "Onboarding", rate: 3, color: "#60a5fa" },
-        { id: crypto.randomUUID(), name: "IDV", rate: 5, color: "#c084fc" }
+        { id: crypto.randomUUID(), name: "Startup", rate: 2.29, color: "#14b8a6" },
+        { id: crypto.randomUUID(), name: "Established", rate: 2.29, color: "#60a5fa" },
+        { id: crypto.randomUUID(), name: "Resubmissions", rate: 2.63, color: "#c084fc" },
+        { id: crypto.randomUUID(), name: "Sole Trader", rate: 2.71, color: "#f97316" },
+        { id: crypto.randomUUID(), name: "Sole Trader Resubmissions", rate: 2.75, color: "#22c55e" }
       ],
       segments: [],
       completions: [],
@@ -651,7 +650,6 @@ dialog::backdrop {
       paceStat: document.getElementById("paceStat"),
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       breakdownList: document.getElementById("breakdownList"),
-      activityLog: document.getElementById("activityLog"),
       completionHistory: document.getElementById("completionHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
@@ -875,18 +873,6 @@ dialog::backdrop {
         : `<p class="subtle">No completed apps yet.</p>`;
     }
 
-    function renderActivityLog() {
-      els.activityLog.innerHTML = state.activityLog.length
-        ? state.activityLog.map(entry => `
-          <article class="log-card">
-            <div><strong>${escapeHtml(entry.type)}</strong></div>
-            <div>${escapeHtml(entry.text)}</div>
-            <div class="log-meta">${formatClock(entry.at)}</div>
-          </article>
-        `).join("")
-        : `<p class="subtle">No activity yet.</p>`;
-    }
-
     function renderStats() {
       const completed = state.completions.length;
       const expectedByNow = getExpectedByNow();
@@ -1012,7 +998,6 @@ dialog::backdrop {
       renderQueueOptions();
       renderQueues();
       renderSegments();
-      renderActivityLog();
       renderCompletionHistory();
       renderStats();
       renderDayTimeline();
