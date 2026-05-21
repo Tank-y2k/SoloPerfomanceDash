@@ -924,8 +924,6 @@ dialog::backdrop {
       const expectedByNow = getExpectedByNow();
       const expectedFullDay = getExpectedFullDay();
       const pace = completed - expectedByNow;
-      const bankMinutes = state.timeBankSeconds / 60;
-
       els.completedCount.textContent = completed;
       els.expectedCount.textContent = expectedByNow.toFixed(1);
       els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
@@ -1035,7 +1033,7 @@ dialog::backdrop {
       els.timerDisplay.textContent = formatDuration(remaining);
       els.timerDisplay.classList.toggle("overdue", remaining < 0);
       els.timerStatus.textContent = remaining >= 0
-        ? `Target pace: ${Math.round(allowedSeconds / 60)} minutes allowed (${Math.round(secondsPerApp / 60)} base + ${(state.timeBankSeconds / 60).toFixed(1)} bank).`
+        ? `Target pace: ${Math.round(allowedSeconds / 60)} minutes allowed (${Math.round(secondsPerApp / 60)} base + ${formatMinutes(state.timeBankSeconds)} bank).`
         : `Over target by ${formatDuration(Math.abs(remaining))}.`;
       els.timerProgress.style.width = `${progress}%`;
     }
