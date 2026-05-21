@@ -776,6 +776,11 @@ dialog::backdrop {
       return (secondsPerApp / completion.durationSeconds) * 100;
     }
 
+    function getThroughputEfficiency(completed, expected) {
+      if (expected <= 0) return 0;
+      return (completed / expected) * 100;
+    }
+
     function formatClock(iso) {
       return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
@@ -960,17 +965,15 @@ dialog::backdrop {
         const plannedHours = queueSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0) / 60;
         const queueCompletions = state.completions.filter(app => app.queueId === queue.id);
         const completed = queueCompletions.length;
-        const avgEfficiency = queueCompletions.length
-          ? queueCompletions.reduce((sum, app) => sum + getCompletionEfficiency(app), 0) / queueCompletions.length
-          : 0;
-        return { queue, expected, plannedHours, completed, avgEfficiency, variance: completed - expected };
+        const throughputEfficiency = getThroughputEfficiency(completed, expected);
+        return { queue, expected, plannedHours, completed, throughputEfficiency, variance: completed - expected };
       }).filter(row => row.expected > 0 || row.completed > 0 || row.plannedHours > 0);
 
       els.breakdownList.innerHTML = byQueue.length
         ? byQueue.map(row => `
           <div class="mini-table-row">
             <strong class="row" style="gap: 8px;"><span class="swatch" style="--queue-color: ${row.queue.color || "#14b8a6"}"></span>${escapeHtml(row.queue.name)}</strong>
-            <span class="subtle">${formatHoursMinutes(row.plannedHours)} · ${row.completed} done / ${row.expected.toFixed(1)} expected · eff ${row.avgEfficiency.toFixed(0)}%</span>
+            <span class="subtle">${formatHoursMinutes(row.plannedHours)} · ${row.completed} done / ${row.expected.toFixed(1)} expected · throughput ${row.throughputEfficiency.toFixed(0)}%</span>
             <span class="pill ${row.variance >= 0 ? "good" : "bad"}">${row.variance >= 0 ? "+" : ""}${row.variance.toFixed(1)}</span>
           </div>
         `).join("")
@@ -988,13 +991,11 @@ dialog::backdrop {
       const expectedSegment = getSegmentExpectedApps(segment);
       const completionsInSegment = state.completions.filter(app => app.segmentId === segment.id);
       const completedInSegment = completionsInSegment.length;
-      const efficiencyInSegment = completedInSegment
-        ? completionsInSegment.reduce((sum, app) => sum + getCompletionEfficiency(app), 0) / completedInSegment
-        : 0;
+      const throughputEfficiencyInSegment = getThroughputEfficiency(completedInSegment, expectedSegment);
       els.currentSegmentDetails.innerHTML = `
         <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
         ${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
-        ${completedInSegment} completed while this segment was active${completedInSegment ? ` · ${efficiencyInSegment.toFixed(0)}% avg efficiency` : ""}.
+        ${completedInSegment} completed while this segment was active · ${throughputEfficiencyInSegment.toFixed(0)}% throughput efficiency.
       `;
     }
 
