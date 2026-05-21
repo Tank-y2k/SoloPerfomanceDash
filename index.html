@@ -875,20 +875,16 @@ dialog::backdrop {
         : `<p class="subtle">No completed apps yet.</p>`;
     }
 
-
-    function renderCompletionHistory() {
-      els.completionHistory.innerHTML = state.completions.length
-        ? state.completions.slice().reverse().map(app => {
-          const queue = getQueue(app.queueId);
-          return `
-            <article class="log-card">
-              <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
-              <div class="log-meta">${(app.durationSeconds / 60).toFixed(1)} min · ${getCompletionEfficiency(app).toFixed(0)}% · ${formatClock(app.at)}</div>
-              <div class="row" style="margin-top: 8px;"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
-            </article>
-          `;
-        }).join("")
-        : `<p class="subtle">No completed apps yet.</p>`;
+    function renderActivityLog() {
+      els.activityLog.innerHTML = state.activityLog.length
+        ? state.activityLog.map(entry => `
+          <article class="log-card">
+            <div><strong>${escapeHtml(entry.type)}</strong></div>
+            <div>${escapeHtml(entry.text)}</div>
+            <div class="log-meta">${formatClock(entry.at)}</div>
+          </article>
+        `).join("")
+        : `<p class="subtle">No activity yet.</p>`;
     }
 
     function renderStats() {
@@ -960,11 +956,15 @@ dialog::backdrop {
 
       const queue = getQueue(segment.queueId);
       const expectedSegment = getSegmentExpectedApps(segment);
-      const completedInSegment = state.completions.filter(app => app.segmentId === segment.id).length;
+      const completionsInSegment = state.completions.filter(app => app.segmentId === segment.id);
+      const completedInSegment = completionsInSegment.length;
+      const efficiencyInSegment = completedInSegment
+        ? completionsInSegment.reduce((sum, app) => sum + getCompletionEfficiency(app), 0) / completedInSegment
+        : 0;
       els.currentSegmentDetails.innerHTML = `
         <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
         ${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
-        ${completedInSegment} completed while this segment was active.
+        ${completedInSegment} completed while this segment was active${completedInSegment ? ` · ${efficiencyInSegment.toFixed(0)}% avg efficiency` : ""}.
       `;
     }
 
