@@ -67,7 +67,7 @@ button { border: 0; cursor: pointer; color: inherit; }
 
 .grid {
   display: grid;
-  grid-template-columns: 1.1fr 1.5fr 1.1fr;
+  grid-template-columns: 1.1fr 1.9fr;
   gap: 18px;
   align-items: start;
 }
@@ -257,13 +257,17 @@ input:focus, select:focus, textarea:focus {
 
 .log-list.single-output { max-height: min(68vh, 640px); }
 
-.completion-panel {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - 76px);
+.completion-modal {
+  width: min(880px, calc(100vw - 28px));
 }
 
-.completion-panel .log-list.single-output {
+.completion-modal .modal-inner {
+  display: flex;
+  flex-direction: column;
+  max-height: min(86vh, 860px);
+}
+
+.completion-modal .log-list.single-output {
   flex: 1;
   min-height: 0;
   max-height: none;
@@ -457,6 +461,7 @@ dialog::backdrop {
         <button class="btn" id="settingsBtn">Queue Settings</button>
         <button class="btn" id="snapshotBtn">Save Current Plan</button>
         <button class="btn warning" id="endDayBtn">End Day Review</button>
+        <button class="btn" id="completedAppsBtn">Completed Apps</button>
         <button class="btn" id="exportCsvBtn">Export CSV</button>
         <button class="btn danger" id="resetBtn">Reset Day</button>
       </section>
@@ -560,13 +565,6 @@ dialog::backdrop {
     </section>
   </section>
 
-  <aside class="panel stack completion-panel">
-    <div>
-      <h2>Completed Apps</h2>
-      <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
-    </div>
-    <div class="log-list single-output" id="completionHistory"></div>
-  </aside>
 </section>
 
   </main>  <dialog id="settingsDialog">
@@ -604,6 +602,15 @@ dialog::backdrop {
       <div class="stack" id="reviewContent"></div>
       <p class="footer-note">Start plan is captured with “Save Current Plan”. Current plan reflects whatever chaos Resource Planning later inflicted.</p>
     </form>
+  </dialog>  <dialog id="completionDialog" class="completion-modal">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header">
+        <h2>Completed Apps</h2>
+        <button class="btn small" value="close">Close</button>
+      </div>
+      <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
+      <div class="log-list single-output" id="completionHistory"></div>
+    </form>
   </dialog>  <script>
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
@@ -637,6 +644,8 @@ dialog::backdrop {
       resetBtn: document.getElementById("resetBtn"),
       settingsDialog: document.getElementById("settingsDialog"),
       reviewDialog: document.getElementById("reviewDialog"),
+      completionDialog: document.getElementById("completionDialog"),
+      completedAppsBtn: document.getElementById("completedAppsBtn"),
       queueName: document.getElementById("queueName"),
       queueRate: document.getElementById("queueRate"),
       queueColor: document.getElementById("queueColor"),
@@ -1080,7 +1089,7 @@ dialog::backdrop {
 
       const efficiency = getCompletionEfficiency(completion);
       resetCurrentTimer();
-      els.completionUid.value = "";
+      els.completionUid.value = "****************";
       logActivity("complete", `Completed app ${uid} from ${queue.name} in ${formatDuration(durationSeconds)} (${efficiency.toFixed(0)}% efficiency). Bank now ${formatMinutes(state.timeBankSeconds)}.`);
       renderAll();
     }
@@ -1276,6 +1285,7 @@ dialog::backdrop {
     els.completeAppBtn.addEventListener("click", completeApp);
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
+    els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
     els.exportCsvBtn.addEventListener("click", exportCompletionsCsv);
     els.resetBtn.addEventListener("click", resetDay);
 
@@ -1286,6 +1296,7 @@ dialog::backdrop {
       renderDayTimeline();
     }, 1000);
 
+    els.completionUid.value = "****************";
     renderAll();
   </script></body>
   </html>
