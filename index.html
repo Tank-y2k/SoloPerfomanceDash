@@ -808,6 +808,15 @@ dialog::backdrop {
       }) || null;
     }
 
+    function getSegmentAtDate(date, includeEnd = false) {
+      const minutes = date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
+      return state.segments.find(segment => {
+        const start = minutesFromTime(segment.start);
+        const end = minutesFromTime(segment.end);
+        return includeEnd ? minutes >= start && minutes <= end : minutes >= start && minutes < end;
+      }) || null;
+    }
+
     function getSegmentMinutes(segment) {
       return Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
     }
@@ -867,6 +876,53 @@ dialog::backdrop {
     function getExpectedByNow() {
       const current = nowMinutes();
       return state.segments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment, current), 0);
+    }
+
+    function getSegmentLabelForTime(iso) {
+      const date = new Date(iso);
+      const segment = getSegmentAtDate(date, true);
+      if (!segment) return "Outside planned segments";
+      const queue = getQueue(segment.queueId);
+      return `${queue?.name || "Missing queue"} (${segment.start}-${segment.end})`;
+    }
+
+    function buildEtcProjection(appCount = 5) {
+      const now = new Date();
+      const segment = getCurrentSegment();
+      if (!segment) return [];
+
+      syncTimerToSegment(segment, now.toISOString());
+      const queue = getQueue(segment.queueId);
+      if (!isProductiveQueue(queue)) return [];
+
+      const secondsPerApp = getSecondsPerApp(queue);
+      const elapsed = Math.max(0, (now.getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
+      const firstRemaining = Math.max(0, Math.max(1, secondsPerApp + state.timeBankSeconds) - elapsed);
+      const projections = [];
+      let cursorMs = now.getTime() + firstRemaining * 1000;
+      projections.push({ index: 1, etaIso: new Date(cursorMs).toISOString() });
+
+      for (let i = 2; i <= appCount; i += 1) {
+        let cursorSegment = getSegmentAtDate(new Date(cursorMs), true);
+        if (!cursorSegment) break;
+
+        if (!isProductiveQueue(getQueue(cursorSegment.queueId))) {
+          const resumeAt = new Date(cursorMs);
+          const [endHour, endMinute] = cursorSegment.end.split(":").map(Number);
+          resumeAt.setHours(endHour, endMinute, 0, 0);
+          cursorMs = resumeAt.getTime();
+          cursorSegment = getSegmentAtDate(new Date(cursorMs), true);
+        }
+
+        if (!cursorSegment) break;
+        const cursorQueue = getQueue(cursorSegment.queueId);
+        if (!isProductiveQueue(cursorQueue)) break;
+
+        cursorMs += getSecondsPerApp(cursorQueue) * 1000;
+        projections.push({ index: i, etaIso: new Date(cursorMs).toISOString() });
+      }
+
+      return projections;
     }
 
     function getExpectedFullDay(segments = state.segments, queues = state.queues) {
@@ -1035,10 +1091,15 @@ dialog::backdrop {
       const completionsInSegment = state.completions.filter(app => app.segmentId === segment.id);
       const completedInSegment = completionsInSegment.length;
       const throughputEfficiencyInSegment = getThroughputEfficiency(completedInSegment, expectedSegment);
+      const etcProjection = buildEtcProjection(5);
+      const etcHtml = etcProjection.length
+        ? `<div style="margin-top: 8px;"><strong>ETC at 100% efficiency:</strong><br>${etcProjection.map(item => `App ${completedInSegment + item.index}: ${formatClock(item.etaIso)} · ${escapeHtml(getSegmentLabelForTime(item.etaIso))}`).join("<br>")}</div>`
+        : `<div style="margin-top: 8px;">ETC unavailable (non-productive or outside planned segments).</div>`;
       els.currentSegmentDetails.innerHTML = `
         <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
         ${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
         ${completedInSegment} completed while this segment was active · ${throughputEfficiencyInSegment.toFixed(0)}% throughput efficiency.
+        ${etcHtml}
       `;
     }
 
