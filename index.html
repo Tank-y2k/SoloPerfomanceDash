@@ -475,6 +475,7 @@ dialog::backdrop {
         <button class="btn" id="snapshotBtn">Save Current Plan</button>
         <button class="btn warning" id="endDayBtn">End Day Review</button>
         <button class="btn" id="completedAppsBtn">Completed Apps</button>
+        <button class="btn" id="timeModalBtn">Time Control</button>
         <button class="btn" id="exportCsvBtn">Export CSV</button>
         <button class="btn danger" id="resetBtn">Reset Day</button>
       </section>
@@ -624,6 +625,44 @@ dialog::backdrop {
       <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
+  </dialog>  <dialog id="timeDialog">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header">
+        <h2>Time Control (Testing)</h2>
+        <button class="btn small" value="close">Close</button>
+      </div>
+      <p class="subtle">Set a custom current time and keep it running as an active clock for testing.</p>
+      <div class="row">
+        <div class="field" style="max-width: 220px;">
+          <label for="timeSetInput">Set time</label>
+          <input id="timeSetInput" type="time" step="1" />
+        </div>
+        <button class="btn primary" id="setTimeBtn" type="button">Set & Start</button>
+        <button class="btn" id="useRealTimeBtn" type="button">Use Real Time</button>
+      </div>
+      <div class="stats-grid">
+        <article class="stat">
+          <div class="value" id="timeModeValue">Real</div>
+          <div class="label">Mode</div>
+        </article>
+        <article class="stat">
+          <div class="value" id="simTimeValue">--:--:--</div>
+          <div class="label">Current test time</div>
+        </article>
+      </div>
+      <div class="row" style="flex-wrap: wrap;">
+        <button class="btn small" type="button" data-adjust-minutes="-60">-60m</button>
+        <button class="btn small" type="button" data-adjust-minutes="-30">-30m</button>
+        <button class="btn small" type="button" data-adjust-minutes="-15">-15m</button>
+        <button class="btn small" type="button" data-adjust-minutes="-5">-5m</button>
+        <button class="btn small" type="button" data-adjust-minutes="-1">-1m</button>
+        <button class="btn small" type="button" data-adjust-minutes="1">+1m</button>
+        <button class="btn small" type="button" data-adjust-minutes="5">+5m</button>
+        <button class="btn small" type="button" data-adjust-minutes="15">+15m</button>
+        <button class="btn small" type="button" data-adjust-minutes="30">+30m</button>
+        <button class="btn small" type="button" data-adjust-minutes="60">+60m</button>
+      </div>
+    </form>
   </dialog>  <script>
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
@@ -644,7 +683,9 @@ dialog::backdrop {
       timerStartedAt: null,
       selectedSegmentId: null,
       timerSegmentId: null,
-      timeBankSeconds: 0
+      timeBankSeconds: 0,
+      simulatedNowIso: null,
+      simulationRealStartIso: null
     };
 
     let state = loadState();
@@ -660,6 +701,13 @@ dialog::backdrop {
       reviewDialog: document.getElementById("reviewDialog"),
       completionDialog: document.getElementById("completionDialog"),
       completedAppsBtn: document.getElementById("completedAppsBtn"),
+      timeModalBtn: document.getElementById("timeModalBtn"),
+      timeDialog: document.getElementById("timeDialog"),
+      timeSetInput: document.getElementById("timeSetInput"),
+      setTimeBtn: document.getElementById("setTimeBtn"),
+      useRealTimeBtn: document.getElementById("useRealTimeBtn"),
+      timeModeValue: document.getElementById("timeModeValue"),
+      simTimeValue: document.getElementById("simTimeValue"),
       queueName: document.getElementById("queueName"),
       queueRate: document.getElementById("queueRate"),
       queueColor: document.getElementById("queueColor"),
@@ -726,7 +774,7 @@ dialog::backdrop {
     }
 
     function logActivity(type, text) {
-      state.activityLog.unshift({ id: crypto.randomUUID(), type, text, at: new Date().toISOString() });
+      state.activityLog.unshift({ id: crypto.randomUUID(), type, text, at: nowIso() });
       state.activityLog = state.activityLog.slice(0, 80);
       saveState();
     }
@@ -736,8 +784,18 @@ dialog::backdrop {
       return hours * 60 + minutes;
     }
 
+    function nowDate() {
+      if (!state.simulatedNowIso || !state.simulationRealStartIso) return new Date();
+      const elapsedMs = Date.now() - new Date(state.simulationRealStartIso).getTime();
+      return new Date(new Date(state.simulatedNowIso).getTime() + Math.max(0, elapsedMs));
+    }
+
+    function nowIso() {
+      return nowDate().toISOString();
+    }
+
     function nowMinutes() {
-      const now = new Date();
+      const now = nowDate();
       return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
     }
 
@@ -821,7 +879,7 @@ dialog::backdrop {
       return Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
     }
 
-    function getRemainingSegmentSeconds(segment, atIso = new Date().toISOString()) {
+    function getRemainingSegmentSeconds(segment, atIso = nowIso()) {
       if (!segment) return null;
       const segmentEnd = new Date(atIso);
       const [endHours, endMinutes] = segment.end.split(":").map(Number);
@@ -829,20 +887,20 @@ dialog::backdrop {
       return Math.max(0, (segmentEnd.getTime() - new Date(atIso).getTime()) / 1000);
     }
 
-    function clampTimeBankToSegment(segment, atIso = new Date().toISOString()) {
+    function clampTimeBankToSegment(segment, atIso = nowIso()) {
       const remainingSegmentSeconds = getRemainingSegmentSeconds(segment, atIso);
       if (remainingSegmentSeconds === null) return;
       state.timeBankSeconds = Math.min(state.timeBankSeconds, remainingSegmentSeconds);
     }
 
-    function getSegmentBoundaryIso(segment, timeText, atIso = new Date().toISOString()) {
+    function getSegmentBoundaryIso(segment, timeText, atIso = nowIso()) {
       const boundary = new Date(atIso);
       const [hours, minutes] = timeText.split(":").map(Number);
       boundary.setHours(hours, minutes, 0, 0);
       return boundary.toISOString();
     }
 
-    function syncTimerToSegment(segment, atIso = new Date().toISOString()) {
+    function syncTimerToSegment(segment, atIso = nowIso()) {
       if (!segment) return;
       const nowMs = new Date(atIso).getTime();
       const segmentStartIso = getSegmentBoundaryIso(segment, segment.start, atIso);
@@ -944,7 +1002,7 @@ dialog::backdrop {
     }
 
     function resetCurrentTimer() {
-      state.timerStartedAt = new Date().toISOString();
+      state.timerStartedAt = nowIso();
       saveState();
     }
 
@@ -1114,7 +1172,7 @@ dialog::backdrop {
         return;
       }
 
-      const nowIso = new Date().toISOString();
+      const nowIso = nowIso();
       syncTimerToSegment(segment, nowIso);
 
       const queue = getQueue(segment.queueId);
@@ -1131,7 +1189,7 @@ dialog::backdrop {
 
       const secondsPerApp = 3600 / Number(queue.rate);
       const allowedSeconds = Math.max(1, secondsPerApp + state.timeBankSeconds);
-      const elapsed = Math.max(0, (Date.now() - new Date(state.timerStartedAt).getTime()) / 1000);
+      const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
       const remaining = allowedSeconds - elapsed;
       const progress = Math.min(100, (elapsed / allowedSeconds) * 100);
 
@@ -1144,6 +1202,15 @@ dialog::backdrop {
       els.timerProgress.style.width = `${progress}%`;
     }
 
+    function renderTimeControl() {
+      const now = nowDate();
+      els.timeModeValue.textContent = state.simulatedNowIso ? "Simulated" : "Real";
+      els.simTimeValue.textContent = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+      if (!els.timeSetInput.value) {
+        els.timeSetInput.value = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+      }
+    }
+
     function renderAll() {
       renderQueueOptions();
       renderQueues();
@@ -1154,6 +1221,7 @@ dialog::backdrop {
       renderBreakdown();
       renderCurrentSegmentDetails();
       renderTimer();
+      renderTimeControl();
       saveState();
     }
 
@@ -1199,7 +1267,7 @@ dialog::backdrop {
       if (!uid) return alert("Enter a UID for the completed app.");
 
       const segment = getCurrentSegment();
-      const nowIso = new Date().toISOString();
+      const nowIso = nowIso();
       const startedAt = state.timerStartedAt || nowIso;
       const durationSeconds = Math.max(1, (new Date(nowIso).getTime() - new Date(startedAt).getTime()) / 1000);
       const expectedSeconds = getSecondsPerApp(queue);
@@ -1248,7 +1316,7 @@ dialog::backdrop {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `queue-completions-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.download = `queue-completions-${nowIso().slice(0, 10)}.csv`;
       link.click();
       URL.revokeObjectURL(url);
       logActivity("export", `Exported CSV for ${state.completions.length} apps.`);
@@ -1257,7 +1325,7 @@ dialog::backdrop {
 
     function saveSnapshot() {
       state.startingSnapshot = {
-        at: new Date().toISOString(),
+        at: nowIso(),
         queues: structuredClone(state.queues),
         segments: structuredClone(state.segments),
         expectedFullDay: getExpectedFullDay()
@@ -1352,6 +1420,7 @@ dialog::backdrop {
       const editSegmentId = event.target.dataset.editSegment;
       const deleteSegmentId = event.target.dataset.deleteSegment;
       const deleteCompletionId = event.target.dataset.deleteCompletion;
+      const adjustMinutes = Number(event.target.dataset.adjustMinutes);
 
       if (editQueueId) {
         const queue = getQueue(editQueueId);
@@ -1401,6 +1470,16 @@ dialog::backdrop {
       }
 
 
+      if (!Number.isNaN(adjustMinutes)) {
+        const current = nowDate();
+        current.setMinutes(current.getMinutes() + adjustMinutes);
+        state.simulatedNowIso = current.toISOString();
+        state.simulationRealStartIso = new Date().toISOString();
+        state.timerSegmentId = null;
+        state.timerStartedAt = null;
+        renderAll();
+      }
+
       if (deleteCompletionId) {
         const completion = state.completions.find(item => item.id === deleteCompletionId);
         if (!completion) return;
@@ -1429,11 +1508,32 @@ dialog::backdrop {
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
+    els.timeModalBtn.addEventListener("click", () => { renderTimeControl(); els.timeDialog.showModal(); });
+    els.setTimeBtn.addEventListener("click", () => {
+      if (!els.timeSetInput.value) return;
+      const [h,m,secRaw] = els.timeSetInput.value.split(":");
+      const sec = Number(secRaw || 0);
+      const base = new Date();
+      base.setHours(Number(h), Number(m), sec, 0);
+      state.simulatedNowIso = base.toISOString();
+      state.simulationRealStartIso = new Date().toISOString();
+      state.timerSegmentId = null;
+      state.timerStartedAt = null;
+      renderAll();
+    });
+    els.useRealTimeBtn.addEventListener("click", () => {
+      state.simulatedNowIso = null;
+      state.simulationRealStartIso = null;
+      state.timerSegmentId = null;
+      state.timerStartedAt = null;
+      renderAll();
+    });
     els.exportCsvBtn.addEventListener("click", exportCompletionsCsv);
     els.resetBtn.addEventListener("click", resetDay);
 
     setInterval(() => {
       renderTimer();
+      renderTimeControl();
       renderStats();
       renderCurrentSegmentDetails();
       renderDayTimeline();
