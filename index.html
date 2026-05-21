@@ -551,6 +551,11 @@ dialog::backdrop {
       <h2>Completed Apps</h2>
       <p class="subtle">App history with UID, duration, efficiency, and delete for mistakes/testing.</p>
     </div>
+    <div class="log-list" id="activityLog"></div>
+    <div>
+      <h3>Completed Apps</h3>
+      <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
+    </div>
     <div class="log-list" id="completionHistory"></div>
   </aside>
 </section>
@@ -646,6 +651,7 @@ dialog::backdrop {
       paceStat: document.getElementById("paceStat"),
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       breakdownList: document.getElementById("breakdownList"),
+      activityLog: document.getElementById("activityLog"),
       completionHistory: document.getElementById("completionHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
@@ -869,6 +875,22 @@ dialog::backdrop {
         : `<p class="subtle">No completed apps yet.</p>`;
     }
 
+
+    function renderCompletionHistory() {
+      els.completionHistory.innerHTML = state.completions.length
+        ? state.completions.slice().reverse().map(app => {
+          const queue = getQueue(app.queueId);
+          return `
+            <article class="log-card">
+              <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
+              <div class="log-meta">${(app.durationSeconds / 60).toFixed(1)} min · ${getCompletionEfficiency(app).toFixed(0)}% · ${formatClock(app.at)}</div>
+              <div class="row" style="margin-top: 8px;"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
+            </article>
+          `;
+        }).join("")
+        : `<p class="subtle">No completed apps yet.</p>`;
+    }
+
     function renderStats() {
       const completed = state.completions.length;
       const expectedByNow = getExpectedByNow();
@@ -990,6 +1012,7 @@ dialog::backdrop {
       renderQueueOptions();
       renderQueues();
       renderSegments();
+      renderActivityLog();
       renderCompletionHistory();
       renderStats();
       renderDayTimeline();
@@ -1093,6 +1116,7 @@ dialog::backdrop {
       link.click();
       URL.revokeObjectURL(url);
       logActivity("export", `Exported CSV for ${state.completions.length} apps.`);
+      renderActivityLog();
     }
 
     function saveSnapshot() {
