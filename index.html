@@ -945,7 +945,7 @@ dialog::backdrop {
     }
 
     function buildEtcProjection(appCount = 5) {
-      const now = new Date();
+      const now = nowDate();
       const segment = getCurrentSegment();
       if (!segment) return [];
 
