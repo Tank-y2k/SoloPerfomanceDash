@@ -248,7 +248,8 @@ input:focus, select:focus, textarea:focus {
 .stat.warn .value { color: var(--warning); }
 
 .queue-list, .segment-list, .log-list {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
   max-height: 340px;
   overflow: auto;
