@@ -250,7 +250,7 @@ input:focus, select:focus, textarea:focus {
 .queue-list, .segment-list, .log-list {
   display: grid;
   gap: 10px;
-  max-height: 420px;
+  max-height: 340px;
   overflow: auto;
   padding-right: 4px;
 }
@@ -443,6 +443,7 @@ dialog::backdrop {
         <button class="btn" id="settingsBtn">Queue Settings</button>
         <button class="btn" id="snapshotBtn">Save Current Plan</button>
         <button class="btn warning" id="endDayBtn">End Day Review</button>
+        <button class="btn" id="exportCsvBtn">Export CSV</button>
         <button class="btn danger" id="resetBtn">Reset Day</button>
       </section>
     </header><section class="grid">
@@ -491,6 +492,10 @@ dialog::backdrop {
         <div class="field" style="max-width: 280px;">
           <label for="completionQueue">Completed app queue</label>
           <select id="completionQueue"></select>
+        </div>
+        <div class="field" style="max-width: 220px;">
+          <label for="completionUid">App UID</label>
+          <input id="completionUid" placeholder="Enter UID" />
         </div>
         <button class="btn success" id="completeAppBtn">App Completed</button>
       </div>
@@ -543,10 +548,10 @@ dialog::backdrop {
 
   <aside class="panel stack">
     <div>
-      <h2>Live Activity Log</h2>
-      <p class="subtle">Completions and planning changes. The receipts, because memory is a liar with branding.</p>
+      <h2>Completed Apps</h2>
+      <p class="subtle">App history with UID, duration, efficiency, and delete for mistakes/testing.</p>
     </div>
-    <div class="log-list" id="activityLog"></div>
+    <div class="log-list" id="completionHistory"></div>
   </aside>
 </section>
 
@@ -601,7 +606,8 @@ dialog::backdrop {
       activityLog: [],
       startingSnapshot: null,
       timerStartedAt: null,
-      selectedSegmentId: null
+      selectedSegmentId: null,
+      timeBankSeconds: 0
     };
 
     let state = loadState();
@@ -611,6 +617,7 @@ dialog::backdrop {
       settingsBtn: document.getElementById("settingsBtn"),
       snapshotBtn: document.getElementById("snapshotBtn"),
       endDayBtn: document.getElementById("endDayBtn"),
+      exportCsvBtn: document.getElementById("exportCsvBtn"),
       resetBtn: document.getElementById("resetBtn"),
       settingsDialog: document.getElementById("settingsDialog"),
       reviewDialog: document.getElementById("reviewDialog"),
@@ -630,6 +637,7 @@ dialog::backdrop {
       timerStatus: document.getElementById("timerStatus"),
       timerProgress: document.getElementById("timerProgress"),
       completionQueue: document.getElementById("completionQueue"),
+      completionUid: document.getElementById("completionUid"),
       completeAppBtn: document.getElementById("completeAppBtn"),
       completedCount: document.getElementById("completedCount"),
       expectedCount: document.getElementById("expectedCount"),
@@ -638,7 +646,7 @@ dialog::backdrop {
       paceStat: document.getElementById("paceStat"),
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       breakdownList: document.getElementById("breakdownList"),
-      activityLog: document.getElementById("activityLog"),
+      completionHistory: document.getElementById("completionHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
       productiveHours: document.getElementById("productiveHours"),
@@ -700,6 +708,22 @@ dialog::backdrop {
       const mins = Math.floor(abs / 60).toString().padStart(2, "0");
       const secs = (abs % 60).toString().padStart(2, "0");
       return `${sign}${mins}:${secs}`;
+    }
+
+
+    function formatMinutes(seconds) {
+      return `${(seconds / 60).toFixed(1)}m`;
+    }
+
+    function getSecondsPerApp(queue) {
+      return isProductiveQueue(queue) ? 3600 / Number(queue.rate) : 0;
+    }
+
+    function getCompletionEfficiency(completion) {
+      const queue = getQueue(completion.queueId);
+      const secondsPerApp = getSecondsPerApp(queue);
+      if (!secondsPerApp || !completion.durationSeconds) return 0;
+      return (secondsPerApp / completion.durationSeconds) * 100;
     }
 
     function formatClock(iso) {
@@ -828,15 +852,21 @@ dialog::backdrop {
       }).join("");
     }
 
-    function renderActivityLog() {
-      els.activityLog.innerHTML = state.activityLog.length
-        ? state.activityLog.map(item => `
-          <article class="log-card">
-            <div>${escapeHtml(item.text)}</div>
-            <div class="log-meta">${formatClock(item.at)}</div>
-          </article>
-        `).join("")
-        : `<p class="subtle">No activity yet. Suspiciously peaceful.</p>`;
+    function renderCompletionHistory() {
+      els.completionHistory.innerHTML = state.completions.length
+        ? state.completions.slice().reverse().map(app => {
+          const queue = getQueue(app.queueId);
+          return `
+            <article class="log-card">
+              <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
+              <div class="log-meta" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                <span>${(app.durationSeconds / 60).toFixed(1)} min</span><span>·</span><span>${getCompletionEfficiency(app).toFixed(0)}%</span><span>·</span><span>${formatClock(app.at)}</span>
+              </div>
+              <div class="row" style="margin-top: 8px; justify-content:flex-end;"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
+            </article>
+          `;
+        }).join("")
+        : `<p class="subtle">No completed apps yet.</p>`;
     }
 
     function renderStats() {
@@ -844,11 +874,12 @@ dialog::backdrop {
       const expectedByNow = getExpectedByNow();
       const expectedFullDay = getExpectedFullDay();
       const pace = completed - expectedByNow;
+      const bankMinutes = state.timeBankSeconds / 60;
 
       els.completedCount.textContent = completed;
       els.expectedCount.textContent = expectedByNow.toFixed(1);
       els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
-      els.paceValue.textContent = `${pace >= 0 ? "+" : ""}${pace.toFixed(1)}`;
+      els.paceValue.textContent = `${pace >= 0 ? "+" : ""}${pace.toFixed(1)} · bank ${bankMinutes >= 0 ? "+" : ""}${bankMinutes.toFixed(1)}m`;
       els.productiveHours.textContent = `${getPlannedHours(true).toFixed(1)}h`;
       els.nonProductiveHours.textContent = `${getPlannedHours(false).toFixed(1)}h`;
 
@@ -879,15 +910,19 @@ dialog::backdrop {
         const queueSegments = state.segments.filter(segment => segment.queueId === queue.id);
         const expected = queueSegments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment), 0);
         const plannedHours = queueSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0) / 60;
-        const completed = state.completions.filter(app => app.queueId === queue.id).length;
-        return { queue, expected, plannedHours, completed, variance: completed - expected };
+        const queueCompletions = state.completions.filter(app => app.queueId === queue.id);
+        const completed = queueCompletions.length;
+        const avgEfficiency = queueCompletions.length
+          ? queueCompletions.reduce((sum, app) => sum + getCompletionEfficiency(app), 0) / queueCompletions.length
+          : 0;
+        return { queue, expected, plannedHours, completed, avgEfficiency, variance: completed - expected };
       }).filter(row => row.expected > 0 || row.completed > 0 || row.plannedHours > 0);
 
       els.breakdownList.innerHTML = byQueue.length
         ? byQueue.map(row => `
           <div class="mini-table-row">
             <strong class="row" style="gap: 8px;"><span class="swatch" style="--queue-color: ${row.queue.color || "#14b8a6"}"></span>${escapeHtml(row.queue.name)}</strong>
-            <span class="subtle">${row.plannedHours.toFixed(1)}h · ${row.completed} done / ${row.expected.toFixed(1)} expected</span>
+            <span class="subtle">${row.plannedHours.toFixed(1)}h · ${row.completed} done / ${row.expected.toFixed(1)} expected · eff ${row.avgEfficiency.toFixed(0)}%</span>
             <span class="pill ${row.variance >= 0 ? "good" : "bad"}">${row.variance >= 0 ? "+" : ""}${row.variance.toFixed(1)}</span>
           </div>
         `).join("")
@@ -935,17 +970,18 @@ dialog::backdrop {
       }
 
       const secondsPerApp = 3600 / Number(queue.rate);
+      const allowedSeconds = Math.max(1, secondsPerApp + state.timeBankSeconds);
       if (!state.timerStartedAt) resetCurrentTimer();
 
       const elapsed = Math.max(0, (Date.now() - new Date(state.timerStartedAt).getTime()) / 1000);
-      const remaining = secondsPerApp - elapsed;
-      const progress = Math.min(100, (elapsed / secondsPerApp) * 100);
+      const remaining = allowedSeconds - elapsed;
+      const progress = Math.min(100, (elapsed / allowedSeconds) * 100);
 
       els.activeQueueName.textContent = queue?.name || "Missing queue";
       els.timerDisplay.textContent = formatDuration(remaining);
       els.timerDisplay.classList.toggle("overdue", remaining < 0);
       els.timerStatus.textContent = remaining >= 0
-        ? `Target pace: one app every ${Math.round(secondsPerApp / 60)} minutes.`
+        ? `Target pace: ${Math.round(allowedSeconds / 60)} minutes allowed (${Math.round(secondsPerApp / 60)} base + ${(state.timeBankSeconds / 60).toFixed(1)} bank).`
         : `Over target by ${formatDuration(Math.abs(remaining))}.`;
       els.timerProgress.style.width = `${progress}%`;
     }
@@ -954,7 +990,7 @@ dialog::backdrop {
       renderQueueOptions();
       renderQueues();
       renderSegments();
-      renderActivityLog();
+      renderCompletionHistory();
       renderStats();
       renderDayTimeline();
       renderBreakdown();
@@ -999,19 +1035,64 @@ dialog::backdrop {
 
     function completeApp() {
       const queueId = els.completionQueue.value;
+      const uid = els.completionUid.value.trim();
       const queue = getQueue(queueId);
       if (!queue || !isProductiveQueue(queue)) return alert("Choose a productive queue for the completed app.");
+      if (!uid) return alert("Enter a UID for the completed app.");
 
       const segment = getCurrentSegment();
-      state.completions.push({
+      const nowIso = new Date().toISOString();
+      const startedAt = state.timerStartedAt || nowIso;
+      const durationSeconds = Math.max(1, (new Date(nowIso).getTime() - new Date(startedAt).getTime()) / 1000);
+      const expectedSeconds = getSecondsPerApp(queue);
+      const varianceSeconds = expectedSeconds - durationSeconds;
+      state.timeBankSeconds += varianceSeconds;
+
+      const completion = {
         id: crypto.randomUUID(),
-        at: new Date().toISOString(),
+        at: nowIso,
         queueId,
-        segmentId: segment?.id || null
-      });
+        segmentId: segment?.id || null,
+        uid,
+        durationSeconds
+      };
+      state.completions.push(completion);
+
+      const efficiency = getCompletionEfficiency(completion);
       resetCurrentTimer();
-      logActivity("complete", `Completed app from ${queue.name}.`);
+      els.completionUid.value = "";
+      logActivity("complete", `Completed app ${uid} from ${queue.name} in ${formatDuration(durationSeconds)} (${efficiency.toFixed(0)}% efficiency). Bank now ${formatMinutes(state.timeBankSeconds)}.`);
       renderAll();
+    }
+
+    function exportCompletionsCsv() {
+      if (!state.completions.length) return alert("No completion history to export yet.");
+      const lines = ["uid,queue,completed_at,duration_minutes,expected_minutes,efficiency_percent,segment"];
+      for (const app of state.completions) {
+        const queue = getQueue(app.queueId);
+        const expectedMinutes = getSecondsPerApp(queue) / 60;
+        const segment = app.segmentId ? state.segments.find(item => item.id === app.segmentId) : null;
+        const segmentLabel = segment ? `${segment.start}-${segment.end}` : "";
+        const row = [
+          app.uid || "",
+          queue?.name || "",
+          app.at,
+          (app.durationSeconds / 60).toFixed(2),
+          expectedMinutes.toFixed(2),
+          getCompletionEfficiency(app).toFixed(2),
+          segmentLabel
+        ].map(value => `"${String(value).replaceAll('"', '""')}"`).join(",");
+        lines.push(row);
+      }
+
+      const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `queue-completions-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      logActivity("export", `Exported CSV for ${state.completions.length} apps.`);
     }
 
     function saveSnapshot() {
@@ -1075,7 +1156,16 @@ dialog::backdrop {
       state.startingSnapshot = null;
       state.timerStartedAt = null;
       state.selectedSegmentId = null;
+      state.timeBankSeconds = 0;
       renderAll();
+    }
+
+
+    function recalculateTimeBankSeconds() {
+      state.timeBankSeconds = state.completions.reduce((sum, app) => {
+        const queue = getQueue(app.queueId);
+        return sum + (getSecondsPerApp(queue) - Number(app.durationSeconds || 0));
+      }, 0);
     }
 
     function escapeHtml(value) {
@@ -1093,6 +1183,7 @@ dialog::backdrop {
       const selectSegmentId = event.target.dataset.selectSegment;
       const editSegmentId = event.target.dataset.editSegment;
       const deleteSegmentId = event.target.dataset.deleteSegment;
+      const deleteCompletionId = event.target.dataset.deleteCompletion;
 
       if (editQueueId) {
         const queue = getQueue(editQueueId);
@@ -1140,6 +1231,15 @@ dialog::backdrop {
         renderAll();
       }
 
+
+      if (deleteCompletionId) {
+        const completion = state.completions.find(item => item.id === deleteCompletionId);
+        if (!completion) return;
+        state.completions = state.completions.filter(item => item.id !== deleteCompletionId);
+        recalculateTimeBankSeconds();
+        logActivity("complete", `Deleted completion ${completion.uid || completion.id}.`);
+        renderAll();
+      }
       if (deleteSegmentId) {
         state.segments = state.segments.filter(segment => segment.id !== deleteSegmentId);
         if (state.selectedSegmentId === deleteSegmentId) state.selectedSegmentId = null;
@@ -1155,6 +1255,7 @@ dialog::backdrop {
     els.completeAppBtn.addEventListener("click", completeApp);
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
+    els.exportCsvBtn.addEventListener("click", exportCompletionsCsv);
     els.resetBtn.addEventListener("click", resetDay);
 
     setInterval(() => {
