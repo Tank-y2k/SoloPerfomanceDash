@@ -280,7 +280,19 @@ input:focus, select:focus, textarea:focus {
   background: rgba(255, 255, 255, 0.025);
   padding: 12px;
   position: relative;
+}
+
+.queue-list > *, .segment-list > *, .log-list > * {
+  flex: 0 0 auto;
+}
+
+.queue-card, .segment-card {
   overflow: hidden;
+}
+
+.log-card {
+  overflow: visible;
+  min-height: max-content;
 }
 
 .queue-card::before, .segment-card::before {
