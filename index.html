@@ -643,6 +643,7 @@ dialog::backdrop {
       startingSnapshot: null,
       timerStartedAt: null,
       selectedSegmentId: null,
+      timerSegmentId: null,
       timeBankSeconds: 0
     };
 
@@ -823,6 +824,34 @@ dialog::backdrop {
       const remainingSegmentSeconds = getRemainingSegmentSeconds(segment, atIso);
       if (remainingSegmentSeconds === null) return;
       state.timeBankSeconds = Math.min(state.timeBankSeconds, remainingSegmentSeconds);
+    }
+
+    function getSegmentBoundaryIso(segment, timeText, atIso = new Date().toISOString()) {
+      const boundary = new Date(atIso);
+      const [hours, minutes] = timeText.split(":").map(Number);
+      boundary.setHours(hours, minutes, 0, 0);
+      return boundary.toISOString();
+    }
+
+    function syncTimerToSegment(segment, atIso = new Date().toISOString()) {
+      if (!segment) return;
+      const nowMs = new Date(atIso).getTime();
+      const segmentStartIso = getSegmentBoundaryIso(segment, segment.start, atIso);
+      const completionsInSegment = state.completions.filter(app => app.segmentId === segment.id);
+      const latestCompletion = completionsInSegment.length
+        ? completionsInSegment.reduce((latest, app) => new Date(app.at).getTime() > new Date(latest.at).getTime() ? app : latest)
+        : null;
+
+      if (state.timerSegmentId !== segment.id) {
+        state.timerSegmentId = segment.id;
+        state.timerStartedAt = latestCompletion?.at || segmentStartIso;
+      }
+
+      if (!state.timerStartedAt) state.timerStartedAt = latestCompletion?.at || segmentStartIso;
+
+      const startedAtMs = new Date(state.timerStartedAt).getTime();
+      if (startedAtMs > nowMs) state.timerStartedAt = atIso;
+      if (startedAtMs < new Date(segmentStartIso).getTime() && !latestCompletion) state.timerStartedAt = segmentStartIso;
     }
 
     function getSegmentExpectedApps(segment, untilMinutes = null) {
@@ -1024,6 +1053,9 @@ dialog::backdrop {
         return;
       }
 
+      const nowIso = new Date().toISOString();
+      syncTimerToSegment(segment, nowIso);
+
       const queue = getQueue(segment.queueId);
       const productive = isProductiveQueue(queue);
 
@@ -1038,8 +1070,6 @@ dialog::backdrop {
 
       const secondsPerApp = 3600 / Number(queue.rate);
       const allowedSeconds = Math.max(1, secondsPerApp + state.timeBankSeconds);
-      if (!state.timerStartedAt) resetCurrentTimer();
-
       const elapsed = Math.max(0, (Date.now() - new Date(state.timerStartedAt).getTime()) / 1000);
       const remaining = allowedSeconds - elapsed;
       const progress = Math.min(100, (elapsed / allowedSeconds) * 100);
@@ -1225,6 +1255,7 @@ dialog::backdrop {
       state.startingSnapshot = null;
       state.timerStartedAt = null;
       state.selectedSegmentId = null;
+      state.timerSegmentId = null;
       state.timeBankSeconds = 0;
       renderAll();
     }
@@ -1288,7 +1319,8 @@ dialog::backdrop {
 
       if (selectSegmentId) {
         state.selectedSegmentId = selectSegmentId;
-        resetCurrentTimer();
+        state.timerSegmentId = null;
+        state.timerStartedAt = null;
         logActivity("plan", "Manually selected active segment.");
         renderAll();
       }
@@ -1319,6 +1351,10 @@ dialog::backdrop {
       if (deleteSegmentId) {
         state.segments = state.segments.filter(segment => segment.id !== deleteSegmentId);
         if (state.selectedSegmentId === deleteSegmentId) state.selectedSegmentId = null;
+        if (state.timerSegmentId === deleteSegmentId) {
+          state.timerSegmentId = null;
+          state.timerStartedAt = null;
+        }
         logActivity("plan", "Deleted segment from plan.");
         renderAll();
       }
