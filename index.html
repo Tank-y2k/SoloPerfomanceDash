@@ -552,6 +552,11 @@ dialog::backdrop {
       <p class="subtle">Completions and planning changes. The receipts, because memory is a liar with branding.</p>
     </div>
     <div class="log-list" id="activityLog"></div>
+    <div>
+      <h3>Completed Apps</h3>
+      <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
+    </div>
+    <div class="log-list" id="completionHistory"></div>
   </aside>
 </section>
 
@@ -647,6 +652,7 @@ dialog::backdrop {
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       breakdownList: document.getElementById("breakdownList"),
       activityLog: document.getElementById("activityLog"),
+      completionHistory: document.getElementById("completionHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
       productiveHours: document.getElementById("productiveHours"),
@@ -863,6 +869,22 @@ dialog::backdrop {
         : `<p class="subtle">No activity yet. Suspiciously peaceful.</p>`;
     }
 
+
+    function renderCompletionHistory() {
+      els.completionHistory.innerHTML = state.completions.length
+        ? state.completions.slice().reverse().map(app => {
+          const queue = getQueue(app.queueId);
+          return `
+            <article class="log-card">
+              <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
+              <div class="log-meta">${(app.durationSeconds / 60).toFixed(1)} min · ${getCompletionEfficiency(app).toFixed(0)}% · ${formatClock(app.at)}</div>
+              <div class="row" style="margin-top: 8px;"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
+            </article>
+          `;
+        }).join("")
+        : `<p class="subtle">No completed apps yet.</p>`;
+    }
+
     function renderStats() {
       const completed = state.completions.length;
       const expectedByNow = getExpectedByNow();
@@ -964,17 +986,18 @@ dialog::backdrop {
       }
 
       const secondsPerApp = 3600 / Number(queue.rate);
+      const allowedSeconds = Math.max(1, secondsPerApp + state.timeBankSeconds);
       if (!state.timerStartedAt) resetCurrentTimer();
 
       const elapsed = Math.max(0, (Date.now() - new Date(state.timerStartedAt).getTime()) / 1000);
-      const remaining = secondsPerApp - elapsed;
-      const progress = Math.min(100, (elapsed / secondsPerApp) * 100);
+      const remaining = allowedSeconds - elapsed;
+      const progress = Math.min(100, (elapsed / allowedSeconds) * 100);
 
       els.activeQueueName.textContent = queue?.name || "Missing queue";
       els.timerDisplay.textContent = formatDuration(remaining);
       els.timerDisplay.classList.toggle("overdue", remaining < 0);
       els.timerStatus.textContent = remaining >= 0
-        ? `Target pace: one app every ${Math.round(secondsPerApp / 60)} minutes.`
+        ? `Target pace: ${Math.round(allowedSeconds / 60)} minutes allowed (${Math.round(secondsPerApp / 60)} base + ${(state.timeBankSeconds / 60).toFixed(1)} bank).`
         : `Over target by ${formatDuration(Math.abs(remaining))}.`;
       els.timerProgress.style.width = `${progress}%`;
     }
@@ -984,6 +1007,7 @@ dialog::backdrop {
       renderQueues();
       renderSegments();
       renderActivityLog();
+      renderCompletionHistory();
       renderStats();
       renderDayTimeline();
       renderBreakdown();
@@ -1154,6 +1178,14 @@ dialog::backdrop {
       renderAll();
     }
 
+
+    function recalculateTimeBankSeconds() {
+      state.timeBankSeconds = state.completions.reduce((sum, app) => {
+        const queue = getQueue(app.queueId);
+        return sum + (getSecondsPerApp(queue) - Number(app.durationSeconds || 0));
+      }, 0);
+    }
+
     function escapeHtml(value) {
       return String(value)
         .replaceAll("&", "&amp;")
@@ -1169,6 +1201,7 @@ dialog::backdrop {
       const selectSegmentId = event.target.dataset.selectSegment;
       const editSegmentId = event.target.dataset.editSegment;
       const deleteSegmentId = event.target.dataset.deleteSegment;
+      const deleteCompletionId = event.target.dataset.deleteCompletion;
 
       if (editQueueId) {
         const queue = getQueue(editQueueId);
@@ -1216,6 +1249,15 @@ dialog::backdrop {
         renderAll();
       }
 
+
+      if (deleteCompletionId) {
+        const completion = state.completions.find(item => item.id === deleteCompletionId);
+        if (!completion) return;
+        state.completions = state.completions.filter(item => item.id !== deleteCompletionId);
+        recalculateTimeBankSeconds();
+        logActivity("complete", `Deleted completion ${completion.uid || completion.id}.`);
+        renderAll();
+      }
       if (deleteSegmentId) {
         state.segments = state.segments.filter(segment => segment.id !== deleteSegmentId);
         if (state.selectedSegmentId === deleteSegmentId) state.selectedSegmentId = null;
