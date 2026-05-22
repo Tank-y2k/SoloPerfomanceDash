@@ -62,9 +62,28 @@ button { border: 0; cursor: pointer; color: inherit; }
 
 .top-actions {
   display: flex;
-  flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 10px;
+  position: relative;
+}
+
+.menu-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 220px;
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  z-index: 40;
+}
+
+.menu-panel .btn {
+  justify-content: flex-start;
+  border-radius: 12px;
 }
 
 .grid {
@@ -487,41 +506,22 @@ dialog::backdrop {
         <p>A solo day planner, live productivity timer, queue overview, and tiny judgement machine for queue work.</p>
       </section>
       <section class="top-actions">
-        <button class="btn" id="settingsBtn">Queue Settings</button>
-        <button class="btn" id="snapshotBtn">Save Current Plan</button>
-        <button class="btn warning" id="endDayBtn">End Day Review</button>
-        <button class="btn" id="completedAppsBtn">Completed Apps</button>
-        <button class="btn" id="exportCsvBtn">Export CSV</button>
-        <button class="btn danger" id="resetBtn">Reset Day</button>
+        <button class="btn" id="menuBtn">Menu</button>
+        <div class="menu-panel hidden" id="topMenuPanel">
+          <button class="btn" id="settingsBtn">Queue Settings</button>
+          <button class="btn" id="planBtn">Today’s Queue Plan</button>
+          <button class="btn" id="archiveBtn">Archived Days</button>
+          <button class="btn" id="snapshotBtn">Save Current Plan</button>
+          <button class="btn warning" id="endDayBtn">End Day Review</button>
+          <button class="btn" id="completedAppsBtn">Completed Apps</button>
+          <button class="btn" id="exportCsvBtn">Export CSV</button>
+          <button class="btn danger" id="resetBtn">Reset Day</button>
+        </div>
       </section>
     </header><section class="grid">
   <aside class="panel stack">
-    <div>
-      <h2>Today’s Queue Plan</h2>
-      <p class="subtle">Add queue blocks, including non-productive blocks for breaks, lunch, meetings, or whatever delightful productivity void appears next.</p>
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label for="segmentQueue">Queue</label>
-        <select id="segmentQueue"></select>
-      </div>
-      <div class="field">
-        <label for="segmentStart">Start</label>
-        <input id="segmentStart" type="time" />
-      </div>
-      <div class="field">
-        <label for="segmentEnd">End</label>
-        <input id="segmentEnd" type="time" />
-      </div>
-    </div>
-
-    <div class="row">
-      <button class="btn primary" id="addSegmentBtn">Add Segment</button>
-      <button class="btn" id="sortSegmentsBtn">Sort</button>
-    </div>
-
-    <div class="segment-list" id="segmentList"></div>
+    <h2>Planner Access</h2>
+    <p class="subtle">Use Menu → Today’s Queue Plan to manage your day blocks.</p>
   </aside>
 
   <section class="panel main-panel stack">
@@ -640,6 +640,41 @@ dialog::backdrop {
       <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
+  </dialog>  <dialog id="planDialog">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header">
+        <h2>Today’s Queue Plan</h2>
+        <button class="btn small" value="close">Close</button>
+      </div>
+      <p class="subtle">Add queue blocks, including non-productive blocks for breaks, lunch, meetings, or whatever delightful productivity void appears next.</p>
+      <div class="row">
+        <div class="field">
+          <label for="segmentQueue">Queue</label>
+          <select id="segmentQueue"></select>
+        </div>
+        <div class="field">
+          <label for="segmentStart">Start</label>
+          <input id="segmentStart" type="time" />
+        </div>
+        <div class="field">
+          <label for="segmentEnd">End</label>
+          <input id="segmentEnd" type="time" />
+        </div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="addSegmentBtn" type="button">Add Segment</button>
+        <button class="btn" id="sortSegmentsBtn" type="button">Sort</button>
+      </div>
+      <div class="segment-list" id="segmentList"></div>
+    </form>
+  </dialog>  <dialog id="archiveDialog">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header">
+        <h2>Archived Days</h2>
+        <button class="btn small" value="close">Close</button>
+      </div>
+      <div class="log-list single-output" id="archiveHistory"></div>
+    </form>
   </dialog>  <script>
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
@@ -655,6 +690,7 @@ dialog::backdrop {
       ],
       segments: [],
       completions: [],
+      archive: [],
       activityLog: [],
       startingSnapshot: null,
       timerStartedAt: null,
@@ -667,12 +703,18 @@ dialog::backdrop {
     ensureNonProductiveQueue();
 
     const els = {
+      menuBtn: document.getElementById("menuBtn"),
+      topMenuPanel: document.getElementById("topMenuPanel"),
       settingsBtn: document.getElementById("settingsBtn"),
+      planBtn: document.getElementById("planBtn"),
+      archiveBtn: document.getElementById("archiveBtn"),
       snapshotBtn: document.getElementById("snapshotBtn"),
       endDayBtn: document.getElementById("endDayBtn"),
       exportCsvBtn: document.getElementById("exportCsvBtn"),
       resetBtn: document.getElementById("resetBtn"),
       settingsDialog: document.getElementById("settingsDialog"),
+      planDialog: document.getElementById("planDialog"),
+      archiveDialog: document.getElementById("archiveDialog"),
       reviewDialog: document.getElementById("reviewDialog"),
       completionDialog: document.getElementById("completionDialog"),
       completedAppsBtn: document.getElementById("completedAppsBtn"),
@@ -702,6 +744,7 @@ dialog::backdrop {
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       breakdownList: document.getElementById("breakdownList"),
       completionHistory: document.getElementById("completionHistory"),
+      archiveHistory: document.getElementById("archiveHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
       productiveHours: document.getElementById("productiveHours"),
@@ -1049,6 +1092,21 @@ dialog::backdrop {
         : `<p class="subtle">No completed apps yet.</p>`;
     }
 
+    function renderArchiveHistory() {
+      els.archiveHistory.innerHTML = state.archive?.length
+        ? state.archive.slice().reverse().map(day => `
+          <article class="log-card">
+            <div><strong>${escapeHtml(new Date(day.archivedAt).toLocaleDateString())}</strong> · ${escapeHtml(day.label)}</div>
+            <div class="log-meta log-meta-inline">
+              <span>${day.completions.length} completed</span><span>·</span>
+              <span>${day.segments.length} segments</span><span>·</span>
+              <span>${day.queues.length} queues</span>
+            </div>
+          </article>
+        `).join("")
+        : `<p class="subtle">No archived days yet.</p>`;
+    }
+
     function renderStats() {
       const completed = state.completions.length;
       const expectedByNow = getExpectedByNow();
@@ -1175,6 +1233,7 @@ dialog::backdrop {
       renderQueues();
       renderSegments();
       renderCompletionHistory();
+      renderArchiveHistory();
       renderStats();
       renderDayTimeline();
       renderBreakdown();
@@ -1335,6 +1394,16 @@ dialog::backdrop {
     function resetDay() {
       const confirmed = confirm("Reset today’s segments, completions, logs, and snapshot? Queue settings will be kept.");
       if (!confirmed) return;
+      state.archive.push({
+        id: crypto.randomUUID(),
+        archivedAt: nowIso(),
+        label: `Archive ${new Date().toLocaleString()}`,
+        queues: structuredClone(state.queues),
+        segments: structuredClone(state.segments),
+        completions: structuredClone(state.completions),
+        activityLog: structuredClone(state.activityLog),
+        startingSnapshot: structuredClone(state.startingSnapshot)
+      });
       state.segments = [];
       state.completions = [];
       state.activityLog = [];
@@ -1371,6 +1440,9 @@ dialog::backdrop {
     }
 
     document.addEventListener("click", event => {
+      if (!els.topMenuPanel.contains(event.target) && event.target !== els.menuBtn) {
+        els.topMenuPanel.classList.add("hidden");
+      }
       const editQueueId = event.target.dataset.editQueue;
       const deleteQueueId = event.target.dataset.deleteQueue;
       const selectSegmentId = event.target.dataset.selectSegment;
@@ -1447,6 +1519,9 @@ dialog::backdrop {
     });
 
     els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
+    els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
+    els.planBtn.addEventListener("click", () => els.planDialog.showModal());
+    els.archiveBtn.addEventListener("click", () => els.archiveDialog.showModal());
     els.addQueueBtn.addEventListener("click", addQueue);
     els.addSegmentBtn.addEventListener("click", addSegment);
     els.sortSegmentsBtn.addEventListener("click", () => { sortSegments(); renderAll(); });
