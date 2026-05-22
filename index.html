@@ -1329,15 +1329,21 @@ dialog::backdrop {
       const expectedByNow = getExpectedByNow();
       const expectedFullDay = getExpectedFullDay();
       const pace = completed - expectedByNow;
+      const currentSegment = getCurrentSegment();
+      const currentQueue = currentSegment ? getQueue(currentSegment.queueId) : null;
+      const bankInApps = isProductiveQueue(currentQueue)
+        ? state.timeBankSeconds / Math.max(1, getSecondsPerApp(currentQueue))
+        : 0;
+      const netPace = pace + bankInApps;
       els.completedCount.textContent = completed;
       els.expectedCount.textContent = expectedByNow.toFixed(1);
       els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
-      els.paceValue.textContent = `${pace >= 0 ? "+" : ""}${pace.toFixed(1)} · bank ${formatMinutes(state.timeBankSeconds)}`;
+      els.paceValue.textContent = `${netPace >= 0 ? "+" : ""}${netPace.toFixed(1)} (${pace >= 0 ? "+" : ""}${pace.toFixed(1)} raw) · bank ${formatMinutes(state.timeBankSeconds)}`;
       els.productiveHours.textContent = formatHoursMinutes(getPlannedHours(true));
       els.nonProductiveHours.textContent = formatHoursMinutes(getPlannedHours(false));
 
       els.paceStat.classList.remove("good", "bad", "warn");
-      els.paceStat.classList.add(pace >= 0 ? "good" : pace <= -1 ? "bad" : "warn");
+      els.paceStat.classList.add(netPace >= 0 ? "good" : netPace <= -1 ? "bad" : "warn");
     }
 
     function renderDayTimeline() {
