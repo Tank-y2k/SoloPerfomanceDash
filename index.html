@@ -210,6 +210,23 @@ input:focus, select:focus, textarea:focus {
   font-size: 0.85rem;
 }
 
+.hero-gamification {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  background: linear-gradient(145deg, rgba(94, 234, 212, 0.16), rgba(20, 184, 166, 0.06));
+}
+
+.hero-gamification h2 {
+  margin-bottom: 8px;
+  font-size: 1.35rem;
+}
+
+.hero-copy {
+  margin: 0 0 10px;
+  color: #ccfbf1;
+}
+
 .timer-card {
   text-align: center;
   padding: 28px 20px;
@@ -541,6 +558,7 @@ dialog::backdrop {
           <button class="btn" id="snapshotBtn">Save Current Plan</button>
           <button class="btn warning" id="endDayBtn">End Day Review</button>
           <button class="btn" id="completedAppsBtn">Completed Apps</button>
+          <button class="btn" id="insightsBtn">Performance Insights</button>
           <button class="btn" id="exportCsvBtn">Export CSV</button>
           <button class="btn danger" id="resetBtn">Reset Day</button>
         </div>
@@ -583,41 +601,9 @@ dialog::backdrop {
       </div>
     </div>
 
-    <section class="stack">
-      <h2>Day Overview</h2>
-      <div class="day-timeline" id="dayTimeline"></div>
-      <div class="stats-grid four">
-        <article class="stat">
-          <div class="value" id="productiveHours">0h 0m</div>
-          <div class="label">Productive planned time</div>
-        </article>
-        <article class="stat">
-          <div class="value" id="nonProductiveHours">0h 0m</div>
-          <div class="label">Non-productive planned time</div>
-        </article>
-        <article class="stat">
-          <div class="value" id="completedCount">0</div>
-          <div class="label">Apps completed</div>
-        </article>
-        <article class="stat" id="paceStat">
-          <div class="value" id="paceValue">0.0</div>
-          <div class="label">Ahead / behind pace</div>
-        </article>
-      </div>
-    </section>
-
-    <div class="stats-grid">
-      <article class="stat">
-        <div class="value" id="expectedCount">0.0</div>
-        <div class="label">Expected by now</div>
-      </article>
-      <article class="stat">
-        <div class="value" id="dayExpectedCount">0.0</div>
-        <div class="label">Expected for full day</div>
-      </article>
-    </div>
-    <section class="panel-soft stack">
-      <h2>Gamification</h2>
+    <section class="hero-gamification stack">
+      <h2>🏆 Gamification HQ</h2>
+      <p class="hero-copy">Focus on score, streak, and quests first. Use <strong>Performance Insights</strong> for deeper operational detail.</p>
       <div class="stats-grid three">
         <article class="stat">
           <div class="value" id="levelValue">1</div>
@@ -632,20 +618,49 @@ dialog::backdrop {
           <div class="label">Fast streak (≤ target)</div>
         </article>
       </div>
+      <div class="stats-grid">
+        <article class="stat">
+          <div class="value" id="completedCount">0</div>
+          <div class="label">Apps completed</div>
+        </article>
+        <article class="stat" id="paceStat">
+          <div class="value" id="paceValue">0.0</div>
+          <div class="label">Ahead / behind pace</div>
+        </article>
+      </div>
       <div class="quest-list" id="questList"></div>
-    </section>
-
-    <section class="panel-soft stack">
-      <h2>Current Segment</h2>
-      <div id="currentSegmentDetails" class="subtle">No matching segment yet.</div>
-    </section>
-
-    <section>
-      <h2>Queue Breakdown</h2>
-      <div class="table-like" id="breakdownList"></div>
+      <div class="row">
+        <button class="btn" id="quickInsightsBtn">Open Performance Insights</button>
+      </div>
     </section>
   </section>
 </section>
+  <dialog id="insightsDialog">
+    <div class="modal-inner">
+      <div class="modal-header">
+        <h2>Performance Insights</h2>
+        <form method="dialog"><button class="btn">Close</button></form>
+      </div>
+      <section class="stack">
+        <h3>Day Overview</h3>
+        <div class="day-timeline" id="dayTimeline"></div>
+        <div class="stats-grid four">
+          <article class="stat"><div class="value" id="productiveHours">0h 0m</div><div class="label">Productive planned time</div></article>
+          <article class="stat"><div class="value" id="nonProductiveHours">0h 0m</div><div class="label">Non-productive planned time</div></article>
+          <article class="stat"><div class="value" id="expectedCount">0.0</div><div class="label">Expected by now</div></article>
+          <article class="stat"><div class="value" id="dayExpectedCount">0.0</div><div class="label">Expected for full day</div></article>
+        </div>
+      </section>
+      <section class="panel-soft stack mt-10">
+        <h3>Current Segment</h3>
+        <div id="currentSegmentDetails" class="subtle">No matching segment yet.</div>
+      </section>
+      <section class="mt-10">
+        <h3>Queue Breakdown</h3>
+        <div class="table-like" id="breakdownList"></div>
+      </section>
+    </div>
+  </dialog>
 
   </main>  <dialog id="settingsDialog">
     <form method="dialog" class="modal-inner">
@@ -771,6 +786,9 @@ dialog::backdrop {
       reviewDialog: document.getElementById("reviewDialog"),
       completionDialog: document.getElementById("completionDialog"),
       completedAppsBtn: document.getElementById("completedAppsBtn"),
+      insightsBtn: document.getElementById("insightsBtn"),
+      quickInsightsBtn: document.getElementById("quickInsightsBtn"),
+      insightsDialog: document.getElementById("insightsDialog"),
       queueName: document.getElementById("queueName"),
       queueRate: document.getElementById("queueRate"),
       queueColor: document.getElementById("queueColor"),
@@ -1648,6 +1666,8 @@ dialog::backdrop {
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
+    els.insightsBtn.addEventListener("click", () => els.insightsDialog.showModal());
+    els.quickInsightsBtn.addEventListener("click", () => els.insightsDialog.showModal());
     els.exportCsvBtn.addEventListener("click", exportCompletionsCsv);
     els.resetBtn.addEventListener("click", resetDay);
 
