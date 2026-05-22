@@ -233,6 +233,12 @@ input:focus, select:focus, textarea:focus {
   line-height: 1;
 }
 
+.timer-secondary {
+  color: var(--muted);
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+}
+
 .timer.overdue { color: var(--danger); }
 .timer-status { color: var(--muted); }
 
@@ -524,6 +530,7 @@ dialog::backdrop {
       <div class="timer-label">Current App Timer</div>
       <div class="active-queue" id="activeQueueName">No active queue</div>
       <div class="timer" id="timerDisplay">--:--</div>
+      <div class="timer-secondary" id="timerBankDisplay">Bank: --</div>
       <div class="timer-status" id="timerStatus">Add a segment covering the current time, or manually select one below.</div>
       <div class="progress-bar">
         <div class="progress-fill" id="timerProgress"></div>
@@ -738,6 +745,7 @@ dialog::backdrop {
       segmentList: document.getElementById("segmentList"),
       activeQueueName: document.getElementById("activeQueueName"),
       timerDisplay: document.getElementById("timerDisplay"),
+      timerBankDisplay: document.getElementById("timerBankDisplay"),
       timerStatus: document.getElementById("timerStatus"),
       timerProgress: document.getElementById("timerProgress"),
       completionQueue: document.getElementById("completionQueue"),
@@ -1201,6 +1209,7 @@ dialog::backdrop {
       if (!segment) {
         els.activeQueueName.textContent = "No active queue";
         els.timerDisplay.textContent = "--:--";
+        els.timerBankDisplay.textContent = "Bank: --";
         els.timerDisplay.classList.remove("overdue");
         els.timerStatus.textContent = "No segment is active. Add one, update timings, or manually select a segment.";
         els.timerProgress.style.width = "0%";
@@ -1216,6 +1225,7 @@ dialog::backdrop {
       if (!productive) {
         els.activeQueueName.textContent = queue?.name || NON_PRODUCTIVE_NAME;
         els.timerDisplay.textContent = "No target";
+        els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)}`;
         els.timerDisplay.classList.remove("overdue");
         els.timerStatus.textContent = "Non-productive segment active. No app timer or expectation applies.";
         els.timerProgress.style.width = "0%";
@@ -1223,17 +1233,20 @@ dialog::backdrop {
       }
 
       const secondsPerApp = 3600 / Number(queue.rate);
-      const allowedSeconds = Math.max(1, secondsPerApp + state.timeBankSeconds);
+      const baseAllowedSeconds = Math.max(1, secondsPerApp);
+      const allowedSecondsWithBank = Math.max(1, baseAllowedSeconds + state.timeBankSeconds);
       const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
-      const remaining = allowedSeconds - elapsed;
-      const progress = Math.min(100, (elapsed / allowedSeconds) * 100);
+      const baseRemaining = baseAllowedSeconds - elapsed;
+      const remainingWithBank = allowedSecondsWithBank - elapsed;
+      const progress = Math.min(100, (elapsed / baseAllowedSeconds) * 100);
 
       els.activeQueueName.textContent = queue?.name || "Missing queue";
-      els.timerDisplay.textContent = formatDuration(remaining);
-      els.timerDisplay.classList.toggle("overdue", remaining < 0);
-      els.timerStatus.textContent = remaining >= 0
-        ? `Target pace: ${Math.round(allowedSeconds / 60)} minutes allowed (${Math.round(secondsPerApp / 60)} base + ${formatMinutes(state.timeBankSeconds)} bank).`
-        : `Over target by ${formatDuration(Math.abs(remaining))}.`;
+      els.timerDisplay.textContent = formatDuration(baseRemaining);
+      els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)} · with bank ${formatDuration(remainingWithBank)}`;
+      els.timerDisplay.classList.toggle("overdue", baseRemaining < 0);
+      els.timerStatus.textContent = baseRemaining >= 0
+        ? `Base expectation: ${Math.round(baseAllowedSeconds / 60)} minutes per app in this queue.`
+        : `Over base expectation by ${formatDuration(Math.abs(baseRemaining))}.`;
       els.timerProgress.style.width = `${progress}%`;
     }
 
