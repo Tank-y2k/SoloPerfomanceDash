@@ -35,7 +35,7 @@ button, input, select, textarea { font: inherit; }
 button { border: 0; cursor: pointer; color: inherit; }
 
 .app-shell {
-  width: min(1500px, calc(100% - 32px));
+  width: min(1720px, calc(100% - 32px));
   margin: 0 auto;
   padding: 24px 0 40px;
 }
@@ -88,7 +88,7 @@ button { border: 0; cursor: pointer; color: inherit; }
 
 .grid {
   display: grid;
-  grid-template-columns: 1.1fr 1.9fr;
+  grid-template-columns: minmax(340px, 1fr) minmax(720px, 2.2fr);
   gap: 18px;
   align-items: start;
 }
@@ -497,6 +497,22 @@ dialog::backdrop {
   margin-top: 16px;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+
+@media (min-width: 1400px) {
+  .grid {
+    grid-template-columns: minmax(360px, 0.95fr) minmax(980px, 2.45fr);
+    gap: 22px;
+  }
+
+  .panel {
+    padding: 22px;
+  }
+
+  .stats-grid.four {
+    grid-template-columns: repeat(4, minmax(180px, 1fr));
+  }
 }
 
 @media (max-width: 1150px) {
