@@ -1042,7 +1042,7 @@ dialog::backdrop {
       els.nonProductiveHours.textContent = formatHoursMinutes(getPlannedHours(false));
 
       els.paceStat.classList.remove("good", "bad", "warn");
-      els.paceStat.classList.add(pace >= 0.25 ? "good" : pace <= -0.25 ? "bad" : "warn");
+      els.paceStat.classList.add(pace >= 0 ? "good" : pace <= -1 ? "bad" : "warn");
     }
 
     function renderDayTimeline() {
@@ -1445,7 +1445,7 @@ dialog::backdrop {
       renderDayTimeline();
     }, 1000);
 
-    els.completionUid.value = "****************";
+    els.completionUid.value = "";
     renderAll();
   </script></body>
   </html>
