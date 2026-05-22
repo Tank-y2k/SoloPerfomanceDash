@@ -239,9 +239,41 @@
       return (minutes / 60) * Number(queue.rate || 0);
     }
 
-    function getExpectedByNow() {
-      const current = nowMinutes();
-      return state.segments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment, current), 0);
+    function getExpectedByNow(atMinutes = nowMinutes()) {
+      return state.segments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment, atMinutes), 0);
+    }
+
+    function getMasterControls(atIso = nowIso()) {
+      const atDate = new Date(atIso);
+      const atMinutes = atDate.getHours() * 60 + atDate.getMinutes() + atDate.getSeconds() / 60;
+      const currentSegment = getCurrentSegment();
+      const currentQueue = currentSegment ? getQueue(currentSegment.queueId) : null;
+      const productive = isProductiveQueue(currentQueue);
+      const secondsPerApp = productive ? getSecondsPerApp(currentQueue) : 0;
+      const baseAllowedSeconds = productive ? Math.max(1, secondsPerApp) : 0;
+      const completed = state.completions.length;
+      const expectedByNow = getExpectedByNow(atMinutes);
+      const expectedFullDay = getExpectedFullDay();
+      const paceRaw = completed - expectedByNow;
+      const bankInApps = productive ? state.timeBankSeconds / Math.max(1, secondsPerApp) : 0;
+      const paceNet = paceRaw + bankInApps;
+
+      return {
+        atIso,
+        atDate,
+        atMinutes,
+        currentSegment,
+        currentQueue,
+        productive,
+        secondsPerApp,
+        baseAllowedSeconds,
+        completed,
+        expectedByNow,
+        expectedFullDay,
+        paceRaw,
+        bankInApps,
+        paceNet
+      };
     }
 
     function getSegmentLabelForTime(iso) {
@@ -343,7 +375,7 @@
     }
 
     function getPaceByNow() {
-      return state.completions.length - getExpectedByNow();
+      return getMasterControls().paceRaw;
     }
 
     function getInDayEfficiency() {
@@ -552,25 +584,16 @@
     }
 
     function renderStats() {
-      const completed = state.completions.length;
-      const expectedByNow = getExpectedByNow();
-      const expectedFullDay = getExpectedFullDay();
-      const pace = completed - expectedByNow;
-      const currentSegment = getCurrentSegment();
-      const currentQueue = currentSegment ? getQueue(currentSegment.queueId) : null;
-      const bankInApps = isProductiveQueue(currentQueue)
-        ? state.timeBankSeconds / Math.max(1, getSecondsPerApp(currentQueue))
-        : 0;
-      const netPace = pace + bankInApps;
-      els.completedCount.textContent = completed;
-      els.expectedCount.textContent = expectedByNow.toFixed(1);
-      els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
-      els.paceValue.textContent = `${netPace >= 0 ? "+" : ""}${netPace.toFixed(1)} (${pace >= 0 ? "+" : ""}${pace.toFixed(1)} raw) · bank ${formatMinutes(state.timeBankSeconds)}`;
+      const controls = getMasterControls();
+      els.completedCount.textContent = controls.completed;
+      els.expectedCount.textContent = controls.expectedByNow.toFixed(1);
+      els.dayExpectedCount.textContent = controls.expectedFullDay.toFixed(1);
+      els.paceValue.textContent = `${controls.paceNet >= 0 ? "+" : ""}${controls.paceNet.toFixed(1)} (${controls.paceRaw >= 0 ? "+" : ""}${controls.paceRaw.toFixed(1)} raw) · bank ${formatMinutes(state.timeBankSeconds)}`;
       els.productiveHours.textContent = formatHoursMinutes(getPlannedHours(true));
       els.nonProductiveHours.textContent = formatHoursMinutes(getPlannedHours(false));
 
       els.paceStat.classList.remove("good", "bad", "warn");
-      els.paceStat.classList.add(netPace >= 0 ? "good" : netPace <= -1 ? "bad" : "warn");
+      els.paceStat.classList.add(controls.paceNet >= 0 ? "good" : controls.paceNet <= -1 ? "bad" : "warn");
     }
 
     function renderDayTimeline() {
@@ -638,7 +661,8 @@
     }
 
     function renderTimer() {
-      const segment = getCurrentSegment();
+      const controls = getMasterControls();
+      const segment = controls.currentSegment;
       if (!segment) {
         els.activeQueueName.textContent = "No active queue";
         els.timerDisplay.textContent = "--:--";
@@ -650,11 +674,11 @@
         return;
       }
 
-      const currentIso = nowIso();
+      const currentIso = controls.atIso;
       syncTimerToSegment(segment, currentIso);
 
-      const queue = getQueue(segment.queueId);
-      const productive = isProductiveQueue(queue);
+      const queue = controls.currentQueue;
+      const productive = controls.productive;
 
       if (!productive) {
         els.activeQueueName.textContent = queue?.name || NON_PRODUCTIVE_NAME;
@@ -668,8 +692,8 @@
         return;
       }
 
-      const secondsPerApp = 3600 / Number(queue.rate);
-      const baseAllowedSeconds = Math.max(1, secondsPerApp);
+      const secondsPerApp = controls.secondsPerApp;
+      const baseAllowedSeconds = controls.baseAllowedSeconds;
       const allowedSecondsWithBank = Math.max(1, baseAllowedSeconds + state.timeBankSeconds);
       const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
       const baseRemaining = baseAllowedSeconds - elapsed;
