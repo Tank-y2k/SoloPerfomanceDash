@@ -19,7 +19,9 @@
       --shadow: 0 16px 40px rgba(0, 0, 0, 0.35);
       --radius: 18px;
       --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }* { box-sizing: border-box; }
+    }
+
+    * { box-sizing: border-box; }
 
 body {
   margin: 0;
@@ -78,6 +80,13 @@ button { border: 0; cursor: pointer; color: inherit; }
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   padding: 18px;
+}
+
+.panel-soft {
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
 }
 
 .panel h2, .panel h3 {
@@ -412,6 +421,13 @@ input:focus, select:focus, textarea:focus {
 }
 
 .hidden { display: none !important; }
+.row-flex { flex: 1; }
+.field-max-280 { max-width: 280px; }
+.field-max-220 { max-width: 220px; }
+.field-max-120 { max-width: 120px; }
+.mt-10 { margin-top: 10px; }
+.log-meta-inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.row-end { margin-top: 8px; justify-content: flex-end; }
 
 dialog {
   border: 1px solid var(--border);
@@ -520,12 +536,12 @@ dialog::backdrop {
     </div>
 
     <div class="row between">
-      <div class="row" style="flex: 1;">
-        <div class="field" style="max-width: 280px;">
+      <div class="row row-flex">
+        <div class="field field-max-280">
           <label for="completionQueue">Completed app queue</label>
           <select id="completionQueue"></select>
         </div>
-        <div class="field" style="max-width: 220px;">
+        <div class="field field-max-220">
           <label for="completionUid">App UID</label>
           <input id="completionUid" placeholder="Enter UID" />
         </div>
@@ -595,7 +611,7 @@ dialog::backdrop {
         <label for="queueRate">Apps per hour</label>
         <input id="queueRate" type="number" min="0" step="0.1" placeholder="e.g. 4" />
       </div>
-      <div class="field" style="max-width: 120px;">
+      <div class="field field-max-120">
         <label for="queueColor">Colour</label>
         <input id="queueColor" type="color" value="#14b8a6" />
       </div>
@@ -800,6 +816,12 @@ dialog::backdrop {
       return Number(queue?.rate || 0) > 0;
     }
 
+    function getSegmentBounds(segment) {
+      const start = minutesFromTime(segment.start);
+      const end = minutesFromTime(segment.end);
+      return { start, end };
+    }
+
     function getCurrentSegment() {
       if (state.selectedSegmentId) {
         const selected = state.segments.find(segment => segment.id === state.selectedSegmentId);
@@ -808,8 +830,7 @@ dialog::backdrop {
 
       const current = nowMinutes();
       return state.segments.find(segment => {
-        const start = minutesFromTime(segment.start);
-        const end = minutesFromTime(segment.end);
+        const { start, end } = getSegmentBounds(segment);
         return current >= start && current < end;
       }) || null;
     }
@@ -817,14 +838,14 @@ dialog::backdrop {
     function getSegmentAtDate(date, includeEnd = false) {
       const minutes = date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
       return state.segments.find(segment => {
-        const start = minutesFromTime(segment.start);
-        const end = minutesFromTime(segment.end);
+        const { start, end } = getSegmentBounds(segment);
         return includeEnd ? minutes >= start && minutes <= end : minutes >= start && minutes < end;
       }) || null;
     }
 
     function getSegmentMinutes(segment) {
-      return Math.max(0, minutesFromTime(segment.end) - minutesFromTime(segment.start));
+      const { start, end } = getSegmentBounds(segment);
+      return Math.max(0, end - start);
     }
 
     function getRemainingSegmentSeconds(segment, atIso = nowIso()) {
@@ -872,8 +893,7 @@ dialog::backdrop {
     function getSegmentExpectedApps(segment, untilMinutes = null) {
       const queue = getQueue(segment.queueId);
       if (!queue) return 0;
-      const start = minutesFromTime(segment.start);
-      const end = minutesFromTime(segment.end);
+      const { start, end } = getSegmentBounds(segment);
       const effectiveEnd = untilMinutes === null ? end : Math.min(Math.max(untilMinutes, start), end);
       const minutes = Math.max(0, effectiveEnd - start);
       return (minutes / 60) * Number(queue.rate || 0);
@@ -980,7 +1000,7 @@ dialog::backdrop {
             <span class="pill">${queue.rate} apps/hr</span>
           </div>
           <div class="queue-meta">${queue.rate > 0 ? `One app every ${Math.round(60 / queue.rate)} minutes.` : "No productivity target. Breaks, lunch, meetings, and other sanctioned voids."}</div>
-          <div class="row" style="margin-top: 10px;">
+          <div class="row mt-10">
             <button class="btn small" data-edit-queue="${queue.id}">Edit</button>
             ${queue.locked ? "" : `<button class="btn small danger" data-delete-queue="${queue.id}">Delete</button>`}
           </div>
@@ -1002,7 +1022,7 @@ dialog::backdrop {
               <span class="pill ${isActive ? "good" : ""}">${isActive ? "Active" : `${expected.toFixed(1)} apps`}</span>
             </div>
             <div class="segment-meta">${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr</div>
-            <div class="row" style="margin-top: 10px;">
+            <div class="row mt-10">
               <button class="btn small" data-select-segment="${segment.id}">Use Now</button>
               <button class="btn small" data-edit-segment="${segment.id}">Edit</button>
               <button class="btn small danger" data-delete-segment="${segment.id}">Delete</button>
@@ -1019,10 +1039,10 @@ dialog::backdrop {
           return `
             <article class="log-card">
               <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
-              <div class="log-meta" style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+              <div class="log-meta log-meta-inline">
                 <span>${formatDuration(app.durationSeconds)}</span><span>·</span><span>${getCompletionEfficiency(app).toFixed(0)}%</span><span>·</span><span>${formatClock(app.at)}</span>
               </div>
-              <div class="row" style="margin-top: 8px; justify-content:flex-end;"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
+              <div class="row row-end"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
             </article>
           `;
         }).join("")
@@ -1258,7 +1278,6 @@ dialog::backdrop {
       link.click();
       URL.revokeObjectURL(url);
       logActivity("export", `Exported CSV for ${state.completions.length} apps.`);
-      renderActivityLog();
     }
 
     function saveSnapshot() {
