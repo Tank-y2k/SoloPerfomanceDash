@@ -570,6 +570,7 @@ dialog::backdrop {
       <div class="active-queue" id="activeQueueName">No active queue</div>
       <div class="timer" id="timerDisplay">--:--</div>
       <div class="timer-secondary" id="timerBankDisplay">Bank: --</div>
+      <div class="timer-secondary" id="timerEfficiencyDisplay">In-day efficiency: --</div>
       <div class="timer-status" id="timerStatus">Add a segment covering the current time, or manually select one below.</div>
       <div class="progress-bar">
         <div class="progress-fill" id="timerProgress"></div>
@@ -805,6 +806,7 @@ dialog::backdrop {
       activeQueueName: document.getElementById("activeQueueName"),
       timerDisplay: document.getElementById("timerDisplay"),
       timerBankDisplay: document.getElementById("timerBankDisplay"),
+      timerEfficiencyDisplay: document.getElementById("timerEfficiencyDisplay"),
       timerStatus: document.getElementById("timerStatus"),
       timerProgress: document.getElementById("timerProgress"),
       completionQueue: document.getElementById("completionQueue"),
@@ -1100,7 +1102,10 @@ dialog::backdrop {
       { id: "pace", label: "Finish at or above pace", rewardXp: 25, progress: () => getPaceByNow() >= 0 ? 1 : 0, target: 1 },
       { id: "minutes-90", label: "Log 90 productive minutes", rewardXp: 25, progress: () => getProductiveMinutes(), target: 90 },
       { id: "minutes-180", label: "Log 3 productive hours", rewardXp: 50, progress: () => getProductiveMinutes(), target: 180 },
-      { id: "queues-3", label: "Complete apps in 3 queues", rewardXp: 30, progress: () => getDistinctProductiveQueuesCompleted(), target: 3 }
+      { id: "queues-3", label: "Complete apps in 3 queues", rewardXp: 30, progress: () => getDistinctProductiveQueuesCompleted(), target: 3 },
+      { id: "eff95-60", label: "Maintain 60 mins at ≥95% efficiency", rewardXp: 35, progress: () => getMinutesAtOrAboveEfficiency(95), target: 60 },
+      { id: "eff95-120", label: "Maintain 2 hours at ≥95% efficiency", rewardXp: 60, progress: () => getMinutesAtOrAboveEfficiency(95), target: 120 },
+      { id: "day-eff-100", label: "Hold 100%+ in-day efficiency", rewardXp: 45, progress: () => (getInDayEfficiency() || 0) >= 100 ? 1 : 0, target: 1 }
     ];
 
     function getProductiveCompletions() {
@@ -1123,6 +1128,26 @@ dialog::backdrop {
 
     function getPaceByNow() {
       return state.completions.length - getExpectedByNow();
+    }
+
+    function getInDayEfficiency() {
+      const productiveCompletions = state.completions.filter(app => isProductiveQueue(getQueue(app.queueId)));
+      const actualSeconds = productiveCompletions.reduce((sum, app) => sum + Math.max(0, app.durationSeconds || 0), 0);
+      const expectedSeconds = productiveCompletions.reduce((sum, app) => {
+        const queue = getQueue(app.queueId);
+        return sum + getSecondsPerApp(queue);
+      }, 0);
+      if (expectedSeconds <= 0 || actualSeconds <= 0) return null;
+      return (expectedSeconds / actualSeconds) * 100;
+    }
+
+    function getMinutesAtOrAboveEfficiency(targetPercent = 95) {
+      const productiveCompletions = state.completions.filter(app => isProductiveQueue(getQueue(app.queueId)));
+      const seconds = productiveCompletions.reduce((sum, app) => {
+        const efficiency = getCompletionEfficiency(app);
+        return efficiency >= targetPercent ? sum + Math.max(0, app.durationSeconds || 0) : sum;
+      }, 0);
+      return Math.round(seconds / 60);
     }
 
     function ensureActiveQuests() {
@@ -1385,6 +1410,7 @@ dialog::backdrop {
         els.activeQueueName.textContent = "No active queue";
         els.timerDisplay.textContent = "--:--";
         els.timerBankDisplay.textContent = "Bank: --";
+        els.timerEfficiencyDisplay.textContent = "In-day efficiency: --";
         els.timerDisplay.classList.remove("overdue");
         els.timerStatus.textContent = "No segment is active. Add one, update timings, or manually select a segment.";
         els.timerProgress.style.width = "0%";
@@ -1401,6 +1427,8 @@ dialog::backdrop {
         els.activeQueueName.textContent = queue?.name || NON_PRODUCTIVE_NAME;
         els.timerDisplay.textContent = "No target";
         els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)}`;
+        const inDayEfficiency = getInDayEfficiency();
+        els.timerEfficiencyDisplay.textContent = `In-day efficiency: ${inDayEfficiency === null ? "--" : `${inDayEfficiency.toFixed(0)}%`}`;
         els.timerDisplay.classList.remove("overdue");
         els.timerStatus.textContent = "Non-productive segment active. No app timer or expectation applies.";
         els.timerProgress.style.width = "0%";
@@ -1418,6 +1446,8 @@ dialog::backdrop {
       els.activeQueueName.textContent = queue?.name || "Missing queue";
       els.timerDisplay.textContent = formatDuration(baseRemaining);
       els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)} · with bank ${formatDuration(remainingWithBank)}`;
+      const inDayEfficiency = getInDayEfficiency();
+      els.timerEfficiencyDisplay.textContent = `In-day efficiency: ${inDayEfficiency === null ? "--" : `${inDayEfficiency.toFixed(0)}%`}`;
       els.timerDisplay.classList.toggle("overdue", baseRemaining < 0);
       els.timerStatus.textContent = baseRemaining >= 0
         ? `Base expectation: ${Math.round(baseAllowedSeconds / 60)} minutes per app in this queue.`
