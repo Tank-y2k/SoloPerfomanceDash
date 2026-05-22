@@ -1245,7 +1245,7 @@ dialog::backdrop {
 
       const efficiency = getCompletionEfficiency(completion);
       resetCurrentTimer();
-      els.completionUid.value = "****************";
+      els.completionUid.value = "";
       logActivity("complete", `Completed app ${uid} from ${queue.name} in ${formatDuration(durationSeconds)} (${efficiency.toFixed(0)}% efficiency). Bank now ${formatMinutes(state.timeBankSeconds)}.`);
       renderAll();
     }
