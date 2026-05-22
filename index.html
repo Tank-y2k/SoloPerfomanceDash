@@ -765,6 +765,8 @@ dialog::backdrop {
       selectedSegmentId: null,
       timerSegmentId: null,
       timeBankSeconds: 0,
+      claimedQuestIds: [],
+      activeQuestIds: []
     };
 
     let state = loadState();
@@ -1088,6 +1090,60 @@ dialog::backdrop {
       }, 0);
       return minutes / 60;
     }
+
+    const QUEST_LIBRARY = [
+      { id: "apps-5", label: "Complete 5 apps", rewardXp: 30, progress: () => getProductiveCompletions(), target: 5 },
+      { id: "apps-10", label: "Complete 10 apps", rewardXp: 45, progress: () => getProductiveCompletions(), target: 10 },
+      { id: "apps-15", label: "Complete 15 apps", rewardXp: 65, progress: () => getProductiveCompletions(), target: 15 },
+      { id: "streak-3", label: "Hit a fast streak of 3", rewardXp: 20, progress: () => getXpAndStreak().bestStreak, target: 3 },
+      { id: "streak-5", label: "Hit a fast streak of 5", rewardXp: 40, progress: () => getXpAndStreak().bestStreak, target: 5 },
+      { id: "pace", label: "Finish at or above pace", rewardXp: 25, progress: () => getPaceByNow() >= 0 ? 1 : 0, target: 1 },
+      { id: "minutes-90", label: "Log 90 productive minutes", rewardXp: 25, progress: () => getProductiveMinutes(), target: 90 },
+      { id: "minutes-180", label: "Log 3 productive hours", rewardXp: 50, progress: () => getProductiveMinutes(), target: 180 },
+      { id: "queues-3", label: "Complete apps in 3 queues", rewardXp: 30, progress: () => getDistinctProductiveQueuesCompleted(), target: 3 }
+    ];
+
+    function getProductiveCompletions() {
+      return state.completions.filter(app => isProductiveQueue(getQueue(app.queueId))).length;
+    }
+
+    function getDistinctProductiveQueuesCompleted() {
+      return new Set(state.completions
+        .filter(app => isProductiveQueue(getQueue(app.queueId)))
+        .map(app => app.queueId)).size;
+    }
+
+    function getProductiveMinutes() {
+      return Math.round(state.completions.reduce((sum, app) => {
+        const queue = getQueue(app.queueId);
+        if (!isProductiveQueue(queue)) return sum;
+        return sum + (app.durationSeconds || 0) / 60;
+      }, 0));
+    }
+
+    function getPaceByNow() {
+      return state.completions.length - getExpectedByNow();
+    }
+
+    function ensureActiveQuests() {
+      if (!Array.isArray(state.claimedQuestIds)) state.claimedQuestIds = [];
+      if (!Array.isArray(state.activeQuestIds)) state.activeQuestIds = [];
+      const availableIds = QUEST_LIBRARY
+        .map(quest => quest.id)
+        .filter(id => !state.claimedQuestIds.includes(id));
+      state.activeQuestIds = state.activeQuestIds.filter(id => availableIds.includes(id));
+      while (state.activeQuestIds.length < 4 && availableIds.length > state.activeQuestIds.length) {
+        const candidates = availableIds.filter(id => !state.activeQuestIds.includes(id));
+        const choice = candidates[Math.floor(Math.random() * candidates.length)];
+        if (!choice) break;
+        state.activeQuestIds.push(choice);
+      }
+    }
+
+    function getActiveQuests() {
+      ensureActiveQuests();
+      return state.activeQuestIds.map(id => QUEST_LIBRARY.find(quest => quest.id === id)).filter(Boolean);
+    }
     function getXpAndStreak() {
       let xp = 0;
       let streak = 0;
@@ -1106,33 +1162,43 @@ dialog::backdrop {
           streak = 0;
         }
       }
+      const questXp = state.claimedQuestIds.reduce((sum, questId) => {
+        const quest = QUEST_LIBRARY.find(item => item.id === questId);
+        return sum + (quest?.rewardXp || 0);
+      }, 0);
+      xp += questXp;
       return { xp, streak, bestStreak };
+    }
+
+    function collectQuest(questId) {
+      const quest = QUEST_LIBRARY.find(item => item.id === questId);
+      if (!quest) return;
+      if (state.claimedQuestIds.includes(quest.id)) return;
+      if (quest.progress() < quest.target) return;
+      state.claimedQuestIds.push(quest.id);
+      state.activeQuestIds = state.activeQuestIds.filter(id => id !== quest.id);
+      ensureActiveQuests();
+      saveState();
+      logActivity("quest", `Collected quest reward for "${quest.label}" (+${quest.rewardXp} XP).`);
+      render();
     }
 
     function renderGamification() {
       const { xp, streak, bestStreak } = getXpAndStreak();
       const level = Math.floor(xp / 100) + 1;
-      const expectedByNow = getExpectedByNow();
-      const pace = state.completions.length - expectedByNow;
-      const productiveCompletions = state.completions.filter(app => {
-        const queue = getQueue(app.queueId);
-        return isProductiveQueue(queue);
-      }).length;
-
-      const quests = [
-        { label: "Complete 5 apps", current: productiveCompletions, target: 5, reward: "+30 XP" },
-        { label: "Hit a fast streak of 3", current: bestStreak, target: 3, reward: "+20 XP" },
-        { label: "Finish at or above pace", current: pace >= 0 ? 1 : 0, target: 1, reward: "+25 XP" }
-      ];
+      const quests = getActiveQuests();
 
       els.levelValue.textContent = String(level);
       els.xpValue.textContent = `${xp} XP`;
       els.streakValue.textContent = String(streak);
       els.questList.innerHTML = quests.map(quest => {
-        const done = quest.current >= quest.target;
+        const current = quest.progress();
+        const done = current >= quest.target;
         return `<div class="quest-item ${done ? "done" : ""}">
-          <div><strong>${quest.label}</strong><div class="subtle">${Math.min(quest.current, quest.target)}/${quest.target}</div></div>
-          <span class="pill ${done ? "good" : "warn"}">${done ? "Complete" : "In progress"} · ${quest.reward}</span>
+          <div><strong>${quest.label}</strong><div class="subtle">${Math.min(current, quest.target)}/${quest.target}</div></div>
+          ${done
+            ? `<button class="btn small success" data-collect-quest="${quest.id}">Collect +${quest.rewardXp} XP</button>`
+            : `<span class="pill warn">In progress · +${quest.rewardXp} XP</span>`}
         </div>`;
       }).join("");
     }
@@ -1586,6 +1652,7 @@ dialog::backdrop {
       const editSegmentId = event.target.dataset.editSegment;
       const deleteSegmentId = event.target.dataset.deleteSegment;
       const deleteCompletionId = event.target.dataset.deleteCompletion;
+      const collectQuestId = event.target.dataset.collectQuest;
 
       if (editQueueId) {
         const queue = getQueue(editQueueId);
@@ -1643,6 +1710,7 @@ dialog::backdrop {
         logActivity("complete", `Deleted completion ${completion.uid || completion.id}.`);
         renderAll();
       }
+      if (collectQuestId) collectQuest(collectQuestId);
       if (deleteSegmentId) {
         state.segments = state.segments.filter(segment => segment.id !== deleteSegmentId);
         if (state.selectedSegmentId === deleteSegmentId) state.selectedSegmentId = null;
