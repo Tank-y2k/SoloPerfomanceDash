@@ -1180,7 +1180,7 @@ dialog::backdrop {
       ensureActiveQuests();
       saveState();
       logActivity("quest", `Collected quest reward for "${quest.label}" (+${quest.rewardXp} XP).`);
-      render();
+      renderAll();
     }
 
     function renderGamification() {
