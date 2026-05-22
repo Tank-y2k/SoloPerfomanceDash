@@ -88,7 +88,7 @@ button { border: 0; cursor: pointer; color: inherit; }
 
 .grid {
   display: grid;
-  grid-template-columns: minmax(340px, 1fr) minmax(720px, 2.2fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -500,10 +500,44 @@ dialog::backdrop {
 }
 
 
-@media (min-width: 1400px) {
-  .grid {
-    grid-template-columns: minmax(360px, 0.95fr) minmax(980px, 2.45fr);
-    gap: 22px;
+@media (min-width: 1200px) {
+  .main-panel {
+    display: grid;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .main-panel > .timer-card,
+  .main-panel > .completion-row,
+  .main-panel > .overview-section {
+    grid-column: 1 / -1;
+  }
+
+  .main-panel > .expectation-stats,
+  .main-panel > .current-segment {
+    grid-column: span 6;
+  }
+
+  .main-panel > .queue-breakdown {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1500px) {
+  .main-panel > .overview-section {
+    grid-column: span 8;
+  }
+
+  .main-panel > .expectation-stats {
+    grid-column: span 4;
+  }
+
+  .main-panel > .current-segment {
+    grid-column: span 4;
+  }
+
+  .main-panel > .queue-breakdown {
+    grid-column: span 8;
   }
 
   .panel {
@@ -516,14 +550,13 @@ dialog::backdrop {
 }
 
 @media (max-width: 1150px) {
-  .grid { grid-template-columns: 1fr 1fr; }
-  .main-panel { grid-column: 1 / -1; order: -1; }
   .stats-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 760px) {
   .app-shell { width: min(100% - 20px, 1500px); padding-top: 14px; }
   .topbar, .grid { grid-template-columns: 1fr; display: grid; }
+  .main-panel { display: grid; }
   .top-actions { justify-content: stretch; }
   .top-actions .btn { flex: 1; }
   .stats-grid, .stats-grid.four { grid-template-columns: 1fr; }
@@ -567,7 +600,7 @@ dialog::backdrop {
       </div>
     </div>
 
-    <div class="row between">
+    <div class="row between completion-row">
       <div class="row row-flex completion-controls">
         <div class="field field-max-280">
           <label for="completionQueue">Completed app queue</label>
@@ -592,7 +625,7 @@ dialog::backdrop {
       </div>
     </div>
 
-    <section class="stack">
+    <section class="stack overview-section">
       <h2>Day Overview</h2>
       <div class="day-timeline" id="dayTimeline"></div>
       <div class="stats-grid four">
@@ -615,7 +648,7 @@ dialog::backdrop {
       </div>
     </section>
 
-    <div class="stats-grid">
+    <div class="stats-grid expectation-stats">
       <article class="stat">
         <div class="value" id="expectedCount">0.0</div>
         <div class="label">Expected by now</div>
@@ -626,12 +659,12 @@ dialog::backdrop {
       </article>
     </div>
 
-    <section class="panel-soft stack">
+    <section class="panel-soft stack current-segment">
       <h2>Current Segment</h2>
       <div id="currentSegmentDetails" class="subtle">No matching segment yet.</div>
     </section>
 
-    <section>
+    <section class="queue-breakdown">
       <h2>Queue Breakdown</h2>
       <div class="table-like" id="breakdownList"></div>
     </section>
