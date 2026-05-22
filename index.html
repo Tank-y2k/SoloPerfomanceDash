@@ -125,6 +125,18 @@ button { border: 0; cursor: pointer; color: inherit; }
   flex-wrap: wrap;
 }
 
+.completion-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.3fr) repeat(2, minmax(150px, 1fr)) auto;
+  gap: 10px;
+  align-items: end;
+  width: 100%;
+}
+
+.completion-controls .btn {
+  white-space: nowrap;
+}
+
 .row.between { justify-content: space-between; }
 
 .field {
@@ -500,6 +512,8 @@ dialog::backdrop {
   .top-actions .btn { flex: 1; }
   .stats-grid, .stats-grid.four { grid-template-columns: 1fr; }
   .mini-table-row { grid-template-columns: 1fr; }
+  .completion-controls { grid-template-columns: 1fr; }
+  .completion-controls .btn { width: 100%; }
 }
 
   </style>
@@ -538,7 +552,7 @@ dialog::backdrop {
     </div>
 
     <div class="row between">
-      <div class="row row-flex">
+      <div class="row row-flex completion-controls">
         <div class="field field-max-280">
           <label for="completionQueue">Completed app queue</label>
           <select id="completionQueue"></select>
