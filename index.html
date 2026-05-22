@@ -253,6 +253,9 @@ input:focus, select:focus, textarea:focus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
+.stats-grid.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
 
 .stats-grid.four {
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -384,6 +387,24 @@ input:focus, select:focus, textarea:focus {
   color: #fef08a;
   border-color: rgba(250, 204, 21, 0.35);
   background: rgba(250, 204, 21, 0.1);
+}
+.quest-list {
+  display: grid;
+  gap: 8px;
+}
+.quest-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.02);
+}
+.quest-item.done {
+  border-color: rgba(134, 239, 172, 0.35);
+  background: rgba(134, 239, 172, 0.08);
 }
 
 .swatch {
@@ -595,6 +616,24 @@ dialog::backdrop {
         <div class="label">Expected for full day</div>
       </article>
     </div>
+    <section class="panel-soft stack">
+      <h2>Gamification</h2>
+      <div class="stats-grid three">
+        <article class="stat">
+          <div class="value" id="levelValue">1</div>
+          <div class="label">Level</div>
+        </article>
+        <article class="stat">
+          <div class="value" id="xpValue">0 XP</div>
+          <div class="label">Total XP</div>
+        </article>
+        <article class="stat">
+          <div class="value" id="streakValue">0</div>
+          <div class="label">Fast streak (≤ target)</div>
+        </article>
+      </div>
+      <div class="quest-list" id="questList"></div>
+    </section>
 
     <section class="panel-soft stack">
       <h2>Current Segment</h2>
@@ -764,7 +803,11 @@ dialog::backdrop {
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
       productiveHours: document.getElementById("productiveHours"),
-      nonProductiveHours: document.getElementById("nonProductiveHours")
+      nonProductiveHours: document.getElementById("nonProductiveHours"),
+      levelValue: document.getElementById("levelValue"),
+      xpValue: document.getElementById("xpValue"),
+      streakValue: document.getElementById("streakValue"),
+      questList: document.getElementById("questList")
     };
 
     function loadState() {
@@ -1027,6 +1070,54 @@ dialog::backdrop {
       }, 0);
       return minutes / 60;
     }
+    function getXpAndStreak() {
+      let xp = 0;
+      let streak = 0;
+      let bestStreak = 0;
+      for (const completion of state.completions) {
+        const queue = getQueue(completion.queueId);
+        const expected = getSecondsPerApp(queue);
+        if (!expected) continue;
+        xp += 10;
+        const efficiency = getCompletionEfficiency(completion);
+        if (efficiency >= 100) {
+          xp += 8;
+          streak += 1;
+          bestStreak = Math.max(bestStreak, streak);
+        } else {
+          streak = 0;
+        }
+      }
+      return { xp, streak, bestStreak };
+    }
+
+    function renderGamification() {
+      const { xp, streak, bestStreak } = getXpAndStreak();
+      const level = Math.floor(xp / 100) + 1;
+      const expectedByNow = getExpectedByNow();
+      const pace = state.completions.length - expectedByNow;
+      const productiveCompletions = state.completions.filter(app => {
+        const queue = getQueue(app.queueId);
+        return isProductiveQueue(queue);
+      }).length;
+
+      const quests = [
+        { label: "Complete 5 apps", current: productiveCompletions, target: 5, reward: "+30 XP" },
+        { label: "Hit a fast streak of 3", current: bestStreak, target: 3, reward: "+20 XP" },
+        { label: "Finish at or above pace", current: pace >= 0 ? 1 : 0, target: 1, reward: "+25 XP" }
+      ];
+
+      els.levelValue.textContent = String(level);
+      els.xpValue.textContent = `${xp} XP`;
+      els.streakValue.textContent = String(streak);
+      els.questList.innerHTML = quests.map(quest => {
+        const done = quest.current >= quest.target;
+        return `<div class="quest-item ${done ? "done" : ""}">
+          <div><strong>${quest.label}</strong><div class="subtle">${Math.min(quest.current, quest.target)}/${quest.target}</div></div>
+          <span class="pill ${done ? "good" : "warn"}">${done ? "Complete" : "In progress"} · ${quest.reward}</span>
+        </div>`;
+      }).join("");
+    }
 
     function resetCurrentTimer() {
       state.timerStartedAt = nowIso();
@@ -1259,6 +1350,7 @@ dialog::backdrop {
       renderStats();
       renderDayTimeline();
       renderBreakdown();
+      renderGamification();
       renderCurrentSegmentDetails();
       renderTimer();
       saveState();
