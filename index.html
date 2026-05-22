@@ -693,6 +693,28 @@ dialog::backdrop {
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
 
+    const TimeCore = {
+      now() { return new Date(); },
+      nowIso() { return this.now().toISOString(); },
+      fromIso(iso) { return new Date(iso); },
+      minutesFromTime(time) {
+        const [hours, minutes] = time.split(":").map(Number);
+        return (hours * 60) + minutes;
+      },
+      minutesOfDay(date) {
+        return date.getHours() * 60 + date.getMinutes() + (date.getSeconds() / 60);
+      },
+      withTime(baseIso, timeText) {
+        const d = this.fromIso(baseIso);
+        const [hours, minutes] = timeText.split(":").map(Number);
+        d.setHours(hours, minutes, 0, 0);
+        return d;
+      },
+      secondsBetween(fromIso, toIso) {
+        return (this.fromIso(toIso).getTime() - this.fromIso(fromIso).getTime()) / 1000;
+      }
+    };
+
     const defaultState = {
       queues: [
         { id: crypto.randomUUID(), name: NON_PRODUCTIVE_NAME, rate: 0, color: "#71717a", locked: true },
@@ -806,21 +828,13 @@ dialog::backdrop {
       saveState();
     }
 
-    function minutesFromTime(time) {
-      const [hours, minutes] = time.split(":").map(Number);
-      return hours * 60 + minutes;
-    }
+    function minutesFromTime(time) { return TimeCore.minutesFromTime(time); }
 
-    function nowDate() { return new Date(); }
+    function nowDate() { return TimeCore.now(); }
 
-    function nowIso() {
-      return nowDate().toISOString();
-    }
+    function nowIso() { return TimeCore.nowIso(); }
 
-    function nowMinutes() {
-      const now = nowDate();
-      return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
-    }
+    function nowMinutes() { return TimeCore.minutesOfDay(TimeCore.now()); }
 
     function formatDuration(seconds) {
       const sign = seconds < 0 ? "-" : "";
@@ -864,7 +878,7 @@ dialog::backdrop {
     }
 
     function formatClock(iso) {
-      return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return TimeCore.fromIso(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
     }
 
     function getQueue(id, queues = state.queues) {
@@ -895,7 +909,7 @@ dialog::backdrop {
     }
 
     function getSegmentAtDate(date, includeEnd = false) {
-      const minutes = date.getHours() * 60 + date.getMinutes() + date.getSeconds() / 60;
+      const minutes = TimeCore.minutesOfDay(date);
       return state.segments.find(segment => {
         const { start, end } = getSegmentBounds(segment);
         return includeEnd ? minutes >= start && minutes <= end : minutes >= start && minutes < end;
@@ -909,10 +923,10 @@ dialog::backdrop {
 
     function getRemainingSegmentSeconds(segment, atIso = nowIso()) {
       if (!segment) return null;
-      const segmentEnd = new Date(atIso);
+      const segmentEnd = TimeCore.fromIso(atIso);
       const [endHours, endMinutes] = segment.end.split(":").map(Number);
       segmentEnd.setHours(endHours, endMinutes, 0, 0);
-      return Math.max(0, (segmentEnd.getTime() - new Date(atIso).getTime()) / 1000);
+      return Math.max(0, (segmentEnd.getTime() - TimeCore.fromIso(atIso).getTime()) / 1000);
     }
 
     function clampTimeBankToSegment(segment, atIso = nowIso()) {
@@ -922,7 +936,7 @@ dialog::backdrop {
     }
 
     function getSegmentBoundaryIso(segment, timeText, atIso = nowIso()) {
-      const boundary = new Date(atIso);
+      const boundary = TimeCore.fromIso(atIso);
       const [hours, minutes] = timeText.split(":").map(Number);
       boundary.setHours(hours, minutes, 0, 0);
       return boundary.toISOString();
@@ -930,11 +944,11 @@ dialog::backdrop {
 
     function syncTimerToSegment(segment, atIso = nowIso()) {
       if (!segment) return;
-      const nowMs = new Date(atIso).getTime();
+      const nowMs = TimeCore.fromIso(atIso).getTime();
       const segmentStartIso = getSegmentBoundaryIso(segment, segment.start, atIso);
       const completionsInSegment = state.completions.filter(app => app.segmentId === segment.id);
       const latestCompletion = completionsInSegment.length
-        ? completionsInSegment.reduce((latest, app) => new Date(app.at).getTime() > new Date(latest.at).getTime() ? app : latest)
+        ? completionsInSegment.reduce((latest, app) => TimeCore.fromIso(app.at).getTime() > TimeCore.fromIso(latest.at).getTime() ? app : latest)
         : null;
 
       if (state.timerSegmentId !== segment.id) {
@@ -944,9 +958,9 @@ dialog::backdrop {
 
       if (!state.timerStartedAt) state.timerStartedAt = latestCompletion?.at || segmentStartIso;
 
-      const startedAtMs = new Date(state.timerStartedAt).getTime();
+      const startedAtMs = TimeCore.fromIso(state.timerStartedAt).getTime();
       if (startedAtMs > nowMs) state.timerStartedAt = atIso;
-      if (startedAtMs < new Date(segmentStartIso).getTime() && !latestCompletion) state.timerStartedAt = segmentStartIso;
+      if (startedAtMs < TimeCore.fromIso(segmentStartIso).getTime() && !latestCompletion) state.timerStartedAt = segmentStartIso;
     }
 
     function getSegmentExpectedApps(segment, untilMinutes = null) {
@@ -964,7 +978,7 @@ dialog::backdrop {
     }
 
     function getSegmentLabelForTime(iso) {
-      const date = new Date(iso);
+      const date = TimeCore.fromIso(iso);
       const segment = getSegmentAtDate(date, true);
       if (!segment) return "Outside planned segments";
       const queue = getQueue(segment.queueId);
@@ -981,22 +995,22 @@ dialog::backdrop {
       if (!isProductiveQueue(queue)) return [];
 
       const secondsPerApp = getSecondsPerApp(queue);
-      const elapsed = Math.max(0, (now.getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
+      const elapsed = Math.max(0, (now.getTime() - TimeCore.fromIso(state.timerStartedAt).getTime()) / 1000);
       const firstRemaining = Math.max(0, Math.max(1, secondsPerApp + state.timeBankSeconds) - elapsed);
       const projections = [];
       let cursorMs = now.getTime() + firstRemaining * 1000;
-      projections.push({ index: 1, etaIso: new Date(cursorMs).toISOString() });
+      projections.push({ index: 1, etaIso: TimeCore.fromIso(cursorMs).toISOString() });
 
       for (let i = 2; i <= appCount; i += 1) {
-        let cursorSegment = getSegmentAtDate(new Date(cursorMs), true);
+        let cursorSegment = getSegmentAtDate(TimeCore.fromIso(cursorMs), true);
         if (!cursorSegment) break;
 
         if (!isProductiveQueue(getQueue(cursorSegment.queueId))) {
-          const resumeAt = new Date(cursorMs);
+          const resumeAt = TimeCore.fromIso(cursorMs);
           const [endHour, endMinute] = cursorSegment.end.split(":").map(Number);
           resumeAt.setHours(endHour, endMinute, 0, 0);
           cursorMs = resumeAt.getTime();
-          cursorSegment = getSegmentAtDate(new Date(cursorMs), true);
+          cursorSegment = getSegmentAtDate(TimeCore.fromIso(cursorMs), true);
         }
 
         if (!cursorSegment) break;
@@ -1004,7 +1018,7 @@ dialog::backdrop {
         if (!isProductiveQueue(cursorQueue)) break;
 
         cursorMs += getSecondsPerApp(cursorQueue) * 1000;
-        projections.push({ index: i, etaIso: new Date(cursorMs).toISOString() });
+        projections.push({ index: i, etaIso: TimeCore.fromIso(cursorMs).toISOString() });
       }
 
       return projections;
@@ -1113,7 +1127,7 @@ dialog::backdrop {
       els.archiveHistory.innerHTML = state.archive?.length
         ? state.archive.slice().reverse().map(day => `
           <article class="log-card">
-            <div><strong>${escapeHtml(new Date(day.archivedAt).toLocaleDateString())}</strong> · ${escapeHtml(day.label)}</div>
+            <div><strong>${escapeHtml(TimeCore.fromIso(day.archivedAt).toLocaleDateString())}</strong> · ${escapeHtml(day.label)}</div>
             <div class="log-meta log-meta-inline">
               <span>${day.completions.length} completed</span><span>·</span>
               <span>${day.segments.length} segments</span><span>·</span>
@@ -1235,7 +1249,7 @@ dialog::backdrop {
       const secondsPerApp = 3600 / Number(queue.rate);
       const baseAllowedSeconds = Math.max(1, secondsPerApp);
       const allowedSecondsWithBank = Math.max(1, baseAllowedSeconds + state.timeBankSeconds);
-      const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
+      const elapsed = Math.max(0, (nowDate().getTime() - TimeCore.fromIso(state.timerStartedAt).getTime()) / 1000);
       const baseRemaining = baseAllowedSeconds - elapsed;
       const remainingWithBank = allowedSecondsWithBank - elapsed;
       const progress = Math.min(100, (elapsed / baseAllowedSeconds) * 100);
@@ -1310,7 +1324,7 @@ dialog::backdrop {
       const segment = getCurrentSegment();
       const currentIso = nowIso();
       const startedAt = state.timerStartedAt || currentIso;
-      const durationSeconds = Math.max(1, (new Date(currentIso).getTime() - new Date(startedAt).getTime()) / 1000);
+      const durationSeconds = Math.max(1, (TimeCore.fromIso(currentIso).getTime() - TimeCore.fromIso(startedAt).getTime()) / 1000);
       const expectedSeconds = getSecondsPerApp(queue);
       const varianceSeconds = expectedSeconds - durationSeconds;
       state.timeBankSeconds += varianceSeconds;
@@ -1424,7 +1438,7 @@ dialog::backdrop {
       state.archive.push({
         id: crypto.randomUUID(),
         archivedAt: nowIso(),
-        label: `Archive ${new Date().toLocaleString()}`,
+        label: `Archive ${TimeCore.now().toLocaleString()}`,
         queues: structuredClone(state.queues),
         segments: structuredClone(state.segments),
         completions: structuredClone(state.completions),
@@ -1446,7 +1460,7 @@ dialog::backdrop {
     function recalculateTimeBankSeconds() {
       state.timeBankSeconds = state.completions
         .slice()
-        .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+        .sort((a, b) => TimeCore.fromIso(a.at).getTime() - TimeCore.fromIso(b.at).getTime())
         .reduce((sum, app) => {
           const queue = getQueue(app.queueId);
           const nextBank = sum + (getSecondsPerApp(queue) - Number(app.durationSeconds || 0));
