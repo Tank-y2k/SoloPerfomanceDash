@@ -1132,11 +1132,22 @@ dialog::backdrop {
 
     function getInDayEfficiency() {
       const productiveCompletions = state.completions.filter(app => isProductiveQueue(getQueue(app.queueId)));
-      const actualSeconds = productiveCompletions.reduce((sum, app) => sum + Math.max(0, app.durationSeconds || 0), 0);
-      const expectedSeconds = productiveCompletions.reduce((sum, app) => {
+      let actualSeconds = productiveCompletions.reduce((sum, app) => sum + Math.max(0, app.durationSeconds || 0), 0);
+      let expectedSeconds = productiveCompletions.reduce((sum, app) => {
         const queue = getQueue(app.queueId);
         return sum + getSecondsPerApp(queue);
       }, 0);
+
+      const segment = getCurrentSegment();
+      const queue = segment ? getQueue(segment.queueId) : null;
+      if (segment && isProductiveQueue(queue) && state.timerStartedAt) {
+        const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
+        if (elapsed > 0) {
+          actualSeconds += elapsed;
+          expectedSeconds += getSecondsPerApp(queue);
+        }
+      }
+
       if (expectedSeconds <= 0 || actualSeconds <= 0) return null;
       return (expectedSeconds / actualSeconds) * 100;
     }
