@@ -522,19 +522,6 @@ dialog::backdrop {
         <aside class="panel stack">
     <h2>Planner Access</h2>
     <p class="subtle">Use Menu → Today’s Queue Plan to manage your day blocks.</p>
-    <div class="row">
-      <div class="field">
-        <label for="completionOutcome">Outcome</label>
-        <select id="completionOutcome">
-          <option value="">Select outcome</option>
-          <option value="Approve">Approve</option>
-          <option value="Resubmit">Resubmit</option>
-          <option value="Decline">Decline</option>
-          <option value="Refer to ORE">Refer to ORE</option>
-          <option value="Other">Other</option>
-        </select>
-      </div>
-    </div>
   </aside>
 
   <section class="panel main-panel stack">
@@ -557,6 +544,17 @@ dialog::backdrop {
         <div class="field field-max-220">
           <label for="completionUid">App UID</label>
           <input id="completionUid" placeholder="Enter UID" />
+        </div>
+        <div class="field field-max-220">
+          <label for="completionOutcome">Outcome</label>
+          <select id="completionOutcome">
+            <option value="">Select outcome</option>
+            <option value="Approve">Approve</option>
+            <option value="Resubmit">Resubmit</option>
+            <option value="Decline">Decline</option>
+            <option value="Refer to ORE">Refer to ORE</option>
+            <option value="Other">Other</option>
+          </select>
         </div>
         <button class="btn success" id="completeAppBtn">App Completed</button>
       </div>
