@@ -522,6 +522,19 @@ dialog::backdrop {
         <aside class="panel stack">
     <h2>Planner Access</h2>
     <p class="subtle">Use Menu → Today’s Queue Plan to manage your day blocks.</p>
+    <div class="row">
+      <div class="field">
+        <label for="completionOutcome">Outcome</label>
+        <select id="completionOutcome">
+          <option value="">Select outcome</option>
+          <option value="Approve">Approve</option>
+          <option value="Resubmit">Resubmit</option>
+          <option value="Decline">Decline</option>
+          <option value="Refer to ORE">Refer to ORE</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+    </div>
   </aside>
 </section>
 
@@ -664,6 +677,7 @@ dialog::backdrop {
       timerProgress: document.getElementById("timerProgress"),
       completionQueue: document.getElementById("completionQueue"),
       completionUid: document.getElementById("completionUid"),
+      completionOutcome: document.getElementById("completionOutcome"),
       completeAppBtn: document.getElementById("completeAppBtn"),
       completedCount: document.getElementById("completedCount"),
       expectedCount: document.getElementById("expectedCount"),
@@ -1011,6 +1025,7 @@ dialog::backdrop {
           return `
             <article class="log-card">
               <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
+              <div class="log-meta">Outcome: ${escapeHtml(app.outcome || "Unspecified")}</div>
               <div class="log-meta log-meta-inline">
                 <span>${formatDuration(app.durationSeconds)}</span><span>·</span><span>${getCompletionEfficiency(app).toFixed(0)}%</span><span>·</span><span>${formatClock(app.at)}</span>
               </div>
@@ -1208,9 +1223,11 @@ dialog::backdrop {
     function completeApp() {
       const queueId = els.completionQueue.value;
       const uid = els.completionUid.value.trim();
+      const outcome = els.completionOutcome?.value?.trim() || "";
       const queue = getQueue(queueId);
       if (!queue || !isProductiveQueue(queue)) return alert("Choose a productive queue for the completed app.");
       if (!uid) return alert("Enter a UID for the completed app.");
+      if (!outcome) return alert("Select an outcome before hitting App Complete.");
 
       const segment = getCurrentSegment();
       const currentIso = nowIso();
@@ -1227,6 +1244,7 @@ dialog::backdrop {
         queueId,
         segmentId: segment?.id || null,
         uid,
+        outcome,
         durationSeconds
       };
       state.completions.push(completion);
@@ -1234,13 +1252,14 @@ dialog::backdrop {
       const efficiency = getCompletionEfficiency(completion);
       resetCurrentTimer();
       els.completionUid.value = "";
-      logActivity("complete", `Completed app ${uid} from ${queue.name} in ${formatDuration(durationSeconds)} (${efficiency.toFixed(0)}% efficiency). Bank now ${formatMinutes(state.timeBankSeconds)}.`);
+      if (els.completionOutcome) els.completionOutcome.value = "";
+      logActivity("complete", `Completed app ${uid} (${outcome}) from ${queue.name} in ${formatDuration(durationSeconds)} (${efficiency.toFixed(0)}% efficiency). Bank now ${formatMinutes(state.timeBankSeconds)}.`);
       renderAll();
     }
 
     function exportCompletionsCsv() {
       if (!state.completions.length) return alert("No completion history to export yet.");
-      const lines = ["uid,queue,completed_at,duration_minutes,expected_minutes,efficiency_percent,segment"];
+      const lines = ["uid,queue,outcome,completed_at,duration_minutes,expected_minutes,efficiency_percent,segment"];
       for (const app of state.completions) {
         const queue = getQueue(app.queueId);
         const expectedMinutes = getSecondsPerApp(queue) / 60;
@@ -1249,6 +1268,7 @@ dialog::backdrop {
         const row = [
           app.uid || "",
           queue?.name || "",
+          app.outcome || "",
           app.at,
           (app.durationSeconds / 60).toFixed(2),
           expectedMinutes.toFixed(2),
@@ -1469,6 +1489,7 @@ dialog::backdrop {
     }, 1000);
 
     els.completionUid.value = "";
+    if (els.completionOutcome) els.completionOutcome.value = "";
     renderAll();
   </script></body>
   </html>
