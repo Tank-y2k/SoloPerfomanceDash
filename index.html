@@ -692,6 +692,11 @@ dialog::backdrop {
   </dialog>  <script>
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
+    const BASE_TITLE = "Queue Performance Dashboard";
+    const ONE_MINUTE_SECONDS = 60;
+
+    let notificationPermissionRequested = false;
+    let oneMinuteNotificationKey = null;
 
     const defaultState = {
       queues: [
@@ -830,6 +835,36 @@ dialog::backdrop {
       return `${sign}${mins}:${secs}`;
     }
 
+    function updateDocumentTitle(timerText = "--:--") {
+      document.title = `${timerText} - ${BASE_TITLE}`;
+    }
+
+    function canUseNotifications() {
+      return "Notification" in window && window.isSecureContext;
+    }
+
+    function requestNotificationPermission() {
+      if (!canUseNotifications() || notificationPermissionRequested || Notification.permission !== "default") return;
+      notificationPermissionRequested = true;
+      Notification.requestPermission();
+    }
+
+    function resetOneMinuteNotification(key = null) {
+      oneMinuteNotificationKey = key;
+    }
+
+    function notifyOneMinuteRemaining(segment, queue, remainingSeconds, totalSeconds) {
+      if (!canUseNotifications() || Notification.permission !== "granted") return;
+      const key = `${segment.id}:${state.timerStartedAt}`;
+      if (oneMinuteNotificationKey === key || totalSeconds <= ONE_MINUTE_SECONDS || remainingSeconds <= 0 || remainingSeconds > ONE_MINUTE_SECONDS) return;
+
+      oneMinuteNotificationKey = key;
+      new Notification("1 minute remaining", {
+        body: `${queue?.name || "Current app"} timer has ${formatDuration(remainingSeconds)} left.`,
+        tag: "queue-dashboard-one-minute",
+        renotify: true
+      });
+    }
 
     function formatMinutes(seconds) {
       const sign = seconds < 0 ? "-" : "";
@@ -940,13 +975,23 @@ dialog::backdrop {
       if (state.timerSegmentId !== segment.id) {
         state.timerSegmentId = segment.id;
         state.timerStartedAt = latestCompletion?.at || segmentStartIso;
+        resetOneMinuteNotification();
       }
 
-      if (!state.timerStartedAt) state.timerStartedAt = latestCompletion?.at || segmentStartIso;
+      if (!state.timerStartedAt) {
+        state.timerStartedAt = latestCompletion?.at || segmentStartIso;
+        resetOneMinuteNotification();
+      }
 
       const startedAtMs = new Date(state.timerStartedAt).getTime();
-      if (startedAtMs > nowMs) state.timerStartedAt = atIso;
-      if (startedAtMs < new Date(segmentStartIso).getTime() && !latestCompletion) state.timerStartedAt = segmentStartIso;
+      if (startedAtMs > nowMs) {
+        state.timerStartedAt = atIso;
+        resetOneMinuteNotification();
+      }
+      if (startedAtMs < new Date(segmentStartIso).getTime() && !latestCompletion) {
+        state.timerStartedAt = segmentStartIso;
+        resetOneMinuteNotification();
+      }
     }
 
     function getSegmentExpectedApps(segment, untilMinutes = null) {
@@ -1030,6 +1075,7 @@ dialog::backdrop {
 
     function resetCurrentTimer() {
       state.timerStartedAt = nowIso();
+      resetOneMinuteNotification();
       saveState();
     }
 
@@ -1213,6 +1259,8 @@ dialog::backdrop {
         els.timerDisplay.classList.remove("overdue");
         els.timerStatus.textContent = "No segment is active. Add one, update timings, or manually select a segment.";
         els.timerProgress.style.width = "0%";
+        updateDocumentTitle();
+        resetOneMinuteNotification();
         return;
       }
 
@@ -1229,6 +1277,8 @@ dialog::backdrop {
         els.timerDisplay.classList.remove("overdue");
         els.timerStatus.textContent = "Non-productive segment active. No app timer or expectation applies.";
         els.timerProgress.style.width = "0%";
+        updateDocumentTitle("No target");
+        resetOneMinuteNotification();
         return;
       }
 
@@ -1240,14 +1290,18 @@ dialog::backdrop {
       const remainingWithBank = allowedSecondsWithBank - elapsed;
       const progress = Math.min(100, (elapsed / baseAllowedSeconds) * 100);
 
+      const timerText = formatDuration(baseRemaining);
+
       els.activeQueueName.textContent = queue?.name || "Missing queue";
-      els.timerDisplay.textContent = formatDuration(baseRemaining);
+      els.timerDisplay.textContent = timerText;
       els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)} · with bank ${formatDuration(remainingWithBank)}`;
       els.timerDisplay.classList.toggle("overdue", baseRemaining < 0);
       els.timerStatus.textContent = baseRemaining >= 0
         ? `Base expectation: ${Math.round(baseAllowedSeconds / 60)} minutes per app in this queue.`
         : `Over base expectation by ${formatDuration(Math.abs(baseRemaining))}.`;
       els.timerProgress.style.width = `${progress}%`;
+      updateDocumentTitle(timerText);
+      notifyOneMinuteRemaining(segment, queue, baseRemaining, baseAllowedSeconds);
     }
 
     function renderAll() {
@@ -1439,6 +1493,7 @@ dialog::backdrop {
       state.selectedSegmentId = null;
       state.timerSegmentId = null;
       state.timeBankSeconds = 0;
+      resetOneMinuteNotification();
       renderAll();
     }
 
@@ -1467,6 +1522,7 @@ dialog::backdrop {
     }
 
     document.addEventListener("click", event => {
+      requestNotificationPermission();
       if (!els.topMenuPanel.contains(event.target) && event.target !== els.menuBtn) {
         els.topMenuPanel.classList.add("hidden");
       }
@@ -1506,6 +1562,7 @@ dialog::backdrop {
         state.selectedSegmentId = selectSegmentId;
         state.timerSegmentId = null;
         state.timerStartedAt = null;
+        resetOneMinuteNotification();
         logActivity("plan", "Manually selected active segment.");
         renderAll();
       }
@@ -1539,6 +1596,7 @@ dialog::backdrop {
         if (state.timerSegmentId === deleteSegmentId) {
           state.timerSegmentId = null;
           state.timerStartedAt = null;
+          resetOneMinuteNotification();
         }
         logActivity("plan", "Deleted segment from plan.");
         renderAll();
