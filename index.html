@@ -1290,6 +1290,7 @@ dialog::backdrop {
       const progress = Math.min(100, (elapsed / baseAllowedSeconds) * 100);
 
       const timerText = formatDuration(baseRemaining);
+      const baseTimerText = formatDuration(remainingWithBank);
 
       els.activeQueueName.textContent = queue?.name || "Missing queue";
       els.timerDisplay.textContent = timerText;
@@ -1299,7 +1300,7 @@ dialog::backdrop {
         ? `Base expectation: ${Math.round(baseAllowedSeconds / 60)} minutes per app in this queue.`
         : `Over base expectation by ${formatDuration(Math.abs(baseRemaining))}.`;
       els.timerProgress.style.width = `${progress}%`;
-      updateDocumentTitle(timerText);
+      updateDocumentTitle(baseTimerText);
       notifyOneMinuteRemaining(segment, queue, baseRemaining, baseAllowedSeconds);
     }
 
