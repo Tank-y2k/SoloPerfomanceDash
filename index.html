@@ -539,7 +539,7 @@ dialog::backdrop {
     <div class="row between">
       <div class="row row-flex">
         <div class="field field-max-280">
-          <label for="completionQueue">Completed app queue</label>
+          <label for="completionQueue">Live active queue</label>
           <select id="completionQueue"></select>
         </div>
         <div class="field field-max-220">
@@ -584,10 +584,18 @@ dialog::backdrop {
       </div>
     </section>
 
-    <div class="stats-grid">
+    <div class="stats-grid four">
       <article class="stat">
         <div class="value" id="expectedCount">0.0</div>
         <div class="label">Expected by now</div>
+      </article>
+      <article class="stat" id="efficiencyStat">
+        <div class="value" id="dailyEfficiencyValue">--</div>
+        <div class="label">Daily efficiency vs now</div>
+      </article>
+      <article class="stat">
+        <div class="value" id="remainingExpectedCount">0.0</div>
+        <div class="label">Still expected today</div>
       </article>
       <article class="stat">
         <div class="value" id="dayExpectedCount">0.0</div>
@@ -596,7 +604,12 @@ dialog::backdrop {
     </div>
 
     <section class="panel-soft stack">
-      <h2>Current Segment</h2>
+      <h2>Live Queue Tracker</h2>
+      <div id="liveTrackerDetails" class="subtle">Queue changes will appear here.</div>
+    </section>
+
+    <section class="panel-soft stack">
+      <h2>Current Plan Segment</h2>
       <div id="currentSegmentDetails" class="subtle">No matching segment yet.</div>
     </section>
 
@@ -715,6 +728,9 @@ dialog::backdrop {
       selectedSegmentId: null,
       timerSegmentId: null,
       timeBankSeconds: 0,
+      activeQueueId: null,
+      activeQueueStartedAt: null,
+      queueSwitchLog: [],
     };
 
     let state = loadState();
@@ -761,7 +777,11 @@ dialog::backdrop {
       dayExpectedCount: document.getElementById("dayExpectedCount"),
       paceValue: document.getElementById("paceValue"),
       paceStat: document.getElementById("paceStat"),
+      efficiencyStat: document.getElementById("efficiencyStat"),
+      dailyEfficiencyValue: document.getElementById("dailyEfficiencyValue"),
+      remainingExpectedCount: document.getElementById("remainingExpectedCount"),
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
+      liveTrackerDetails: document.getElementById("liveTrackerDetails"),
       breakdownList: document.getElementById("breakdownList"),
       completionHistory: document.getElementById("completionHistory"),
       archiveHistory: document.getElementById("archiveHistory"),
@@ -916,16 +936,7 @@ dialog::backdrop {
     }
 
     function getCurrentSegment() {
-      if (state.selectedSegmentId) {
-        const selected = state.segments.find(segment => segment.id === state.selectedSegmentId);
-        if (selected) return selected;
-      }
-
-      const current = nowMinutes();
-      return state.segments.find(segment => {
-        const { start, end } = getSegmentBounds(segment);
-        return current >= start && current < end;
-      }) || null;
+      return getPlannedSegmentAtNow();
     }
 
     function getSegmentAtDate(date, includeEnd = false) {
@@ -934,6 +945,74 @@ dialog::backdrop {
         const { start, end } = getSegmentBounds(segment);
         return includeEnd ? minutes >= start && minutes <= end : minutes >= start && minutes < end;
       }) || null;
+    }
+
+    function getPlannedSegmentAtNow() {
+      const current = nowMinutes();
+      return state.segments.find(segment => {
+        const { start, end } = getSegmentBounds(segment);
+        return current >= start && current < end;
+      }) || null;
+    }
+
+    function getDefaultActiveQueueId() {
+      const plannedSegment = getPlannedSegmentAtNow();
+      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
+      return isProductiveQueue(plannedQueue) ? plannedQueue.id : null;
+    }
+
+    function getActiveQueue() {
+      const manualQueue = state.activeQueueId ? getQueue(state.activeQueueId) : null;
+      if (isProductiveQueue(manualQueue)) return manualQueue;
+      const defaultQueueId = getDefaultActiveQueueId();
+      return defaultQueueId ? getQueue(defaultQueueId) : null;
+    }
+
+    function getQueueSwitchRows() {
+      return Array.isArray(state.queueSwitchLog) ? state.queueSwitchLog : [];
+    }
+
+    function getQueueTrackedSeconds(queueId) {
+      if (!queueId) return 0;
+      const sorted = getQueueSwitchRows().slice().sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
+      return sorted.reduce((sum, entry, index) => {
+        if (entry.queueId !== queueId) return sum;
+        const endAt = sorted[index + 1]?.at || nowIso();
+        return sum + Math.max(0, (new Date(endAt).getTime() - new Date(entry.at).getTime()) / 1000);
+      }, 0);
+    }
+
+    function setActiveQueue(queueId, source = "manual") {
+      const queue = getQueue(queueId);
+      if (!queue || !isProductiveQueue(queue)) return;
+      if (state.activeQueueId === queueId) return;
+
+      const plannedSegment = getPlannedSegmentAtNow();
+      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
+      const previousQueue = getActiveQueue();
+      const changedAt = nowIso();
+
+      state.activeQueueId = queueId;
+      state.activeQueueStartedAt = changedAt;
+      state.timerSegmentId = null;
+      state.timerStartedAt = changedAt;
+      resetOneMinuteNotification();
+
+      const adherenceText = plannedQueue
+        ? (plannedQueue.id === queueId ? "matches the original plan" : `planned ${plannedQueue.name}`)
+        : "outside planned productive time";
+
+      state.queueSwitchLog.unshift({
+        id: crypto.randomUUID(),
+        at: changedAt,
+        queueId,
+        previousQueueId: previousQueue?.id || null,
+        plannedQueueId: plannedQueue?.id || null,
+        plannedSegmentId: plannedSegment?.id || null,
+        source
+      });
+      state.queueSwitchLog = state.queueSwitchLog.slice(0, 120);
+      logActivity("tracker", `Switched live queue to ${queue.name} (${adherenceText}).`);
     }
 
     function getSegmentMinutes(segment) {
@@ -1084,15 +1163,17 @@ dialog::backdrop {
         .join("");
       els.segmentQueue.innerHTML = options;
 
-      const currentSegment = getCurrentSegment();
-      els.completionQueue.innerHTML = state.queues
-        .filter(queue => isProductiveQueue(queue))
+      const productiveQueues = state.queues.filter(queue => isProductiveQueue(queue));
+      els.completionQueue.innerHTML = productiveQueues
         .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)}</option>`)
         .join("");
 
-      if (currentSegment) {
-        const currentQueue = getQueue(currentSegment.queueId);
-        if (isProductiveQueue(currentQueue)) els.completionQueue.value = currentSegment.queueId;
+      const activeQueue = getActiveQueue();
+      const fallbackQueue = productiveQueues[0];
+      if (activeQueue) {
+        els.completionQueue.value = activeQueue.id;
+      } else if (fallbackQueue) {
+        els.completionQueue.value = fallbackQueue.id;
       }
     }
 
@@ -1127,7 +1208,7 @@ dialog::backdrop {
             </div>
             <div class="segment-meta">${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr</div>
             <div class="row mt-10">
-              <button class="btn small" data-select-segment="${segment.id}">Use Now</button>
+              <button class="btn small" data-select-segment="${segment.id}">Track Queue</button>
               <button class="btn small" data-edit-segment="${segment.id}">Edit</button>
               <button class="btn small danger" data-delete-segment="${segment.id}">Delete</button>
             </div>
@@ -1173,9 +1254,13 @@ dialog::backdrop {
       const completed = state.completions.length;
       const expectedByNow = getExpectedByNow();
       const expectedFullDay = getExpectedFullDay();
+      const remainingExpected = Math.max(0, expectedFullDay - Math.max(completed, expectedByNow));
+      const efficiency = getThroughputEfficiency(completed, expectedByNow);
       const pace = completed - expectedByNow;
       els.completedCount.textContent = completed;
       els.expectedCount.textContent = expectedByNow.toFixed(1);
+      els.dailyEfficiencyValue.textContent = expectedByNow > 0 ? `${efficiency.toFixed(0)}%` : "--";
+      els.remainingExpectedCount.textContent = remainingExpected.toFixed(1);
       els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
       els.paceValue.textContent = `${pace >= 0 ? "+" : ""}${pace.toFixed(1)} · bank ${formatMinutes(state.timeBankSeconds)}`;
       els.productiveHours.textContent = formatHoursMinutes(getPlannedHours(true));
@@ -1183,6 +1268,8 @@ dialog::backdrop {
 
       els.paceStat.classList.remove("good", "bad", "warn");
       els.paceStat.classList.add(pace >= 0 ? "good" : pace <= -1 ? "bad" : "warn");
+      els.efficiencyStat.classList.remove("good", "bad", "warn");
+      els.efficiencyStat.classList.add(efficiency >= 100 ? "good" : efficiency >= 85 ? "warn" : "bad");
     }
 
     function renderDayTimeline() {
@@ -1225,6 +1312,36 @@ dialog::backdrop {
         : `<p class="subtle">No queue expectations yet.</p>`;
     }
 
+    function renderLiveTracker() {
+      const activeQueue = getActiveQueue();
+      const plannedSegment = getPlannedSegmentAtNow();
+      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
+      const trackingStarted = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "from current plan";
+      const adherenceClass = plannedQueue && activeQueue?.id === plannedQueue.id ? "good" : "warn";
+      const recentSwitches = getQueueSwitchRows().slice(0, 5);
+      const switchHtml = recentSwitches.length
+        ? `<div style="margin-top: 10px;"><strong>Recent manual queue changes:</strong><br>${recentSwitches.map(entry => {
+          const queue = getQueue(entry.queueId);
+          const planned = entry.plannedQueueId ? getQueue(entry.plannedQueueId) : null;
+          const adherence = planned ? (planned.id === entry.queueId ? "matched plan" : `planned ${planned.name}`) : "outside plan";
+          return `${formatClock(entry.at)} · ${escapeHtml(queue?.name || "Missing queue")} · ${escapeHtml(adherence)}`;
+        }).join("<br>")}</div>`
+        : `<div style="margin-top: 10px;">No manual queue changes logged yet. Changing the dropdown will start the adherence log without editing today’s plan.</div>`;
+
+      if (!activeQueue) {
+        els.liveTrackerDetails.innerHTML = `No productive live queue selected. Pick one in the Live active queue dropdown to start tracking actual work.${switchHtml}`;
+        return;
+      }
+
+      els.liveTrackerDetails.innerHTML = `
+        <strong>${escapeHtml(activeQueue.name)}</strong> is being worked now.
+        <span class="pill ${adherenceClass}" style="margin-left: 6px;">${plannedQueue?.id === activeQueue.id ? "On plan" : "Off plan"}</span><br>
+        Tracking started ${trackingStarted}. Planned right now: ${escapeHtml(plannedQueue?.name || "No productive queue")}${plannedSegment ? ` (${plannedSegment.start}-${plannedSegment.end})` : ""}.<br>
+        Tracked on this queue today: ${formatMinutes(getQueueTrackedSeconds(activeQueue.id))}.
+        ${switchHtml}
+      `;
+    }
+
     function renderCurrentSegmentDetails() {
       const segment = getCurrentSegment();
       if (!segment) {
@@ -1251,12 +1368,13 @@ dialog::backdrop {
 
     function renderTimer() {
       const segment = getCurrentSegment();
-      if (!segment) {
+      const activeQueue = getActiveQueue();
+      if (!activeQueue) {
         els.activeQueueName.textContent = "No active queue";
         els.timerDisplay.textContent = "--:--";
         els.timerBankDisplay.textContent = "Bank: --";
         els.timerDisplay.classList.remove("overdue");
-        els.timerStatus.textContent = "No segment is active. Add one, update timings, or manually select a segment.";
+        els.timerStatus.textContent = "Choose the live active queue you are working. This logs actual queue changes without editing today’s plan.";
         els.timerProgress.style.width = "0%";
         updateDocumentTitle();
         resetOneMinuteNotification();
@@ -1264,23 +1382,13 @@ dialog::backdrop {
       }
 
       const currentIso = nowIso();
-      syncTimerToSegment(segment, currentIso);
-
-      const queue = getQueue(segment.queueId);
-      const productive = isProductiveQueue(queue);
-
-      if (!productive) {
-        els.activeQueueName.textContent = queue?.name || NON_PRODUCTIVE_NAME;
-        els.timerDisplay.textContent = "No target";
-        els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)}`;
-        els.timerDisplay.classList.remove("overdue");
-        els.timerStatus.textContent = "Non-productive segment active. No app timer or expectation applies.";
-        els.timerProgress.style.width = "0%";
-        updateDocumentTitle("No target");
-        resetOneMinuteNotification();
-        return;
+      if (!state.activeQueueId && segment) {
+        syncTimerToSegment(segment, currentIso);
+      } else if (!state.timerStartedAt) {
+        state.timerStartedAt = state.activeQueueStartedAt || currentIso;
       }
 
+      const queue = activeQueue;
       const secondsPerApp = 3600 / Number(queue.rate);
       const baseAllowedSeconds = Math.max(1, secondsPerApp);
       const allowedSecondsWithBank = Math.max(1, baseAllowedSeconds + state.timeBankSeconds);
@@ -1291,14 +1399,19 @@ dialog::backdrop {
 
       const timerText = formatDuration(baseRemaining);
       const baseTimerText = formatDuration(remainingWithBank);
+      const plannedSegment = getPlannedSegmentAtNow();
+      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
+      const adherenceText = plannedQueue?.id === queue.id
+        ? "Live queue matches the original plan."
+        : `Live queue is tracking actual work; original plan says ${plannedQueue?.name || "no productive queue"}.`;
 
       els.activeQueueName.textContent = queue?.name || "Missing queue";
       els.timerDisplay.textContent = timerText;
       els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)} · with bank ${formatDuration(remainingWithBank)}`;
       els.timerDisplay.classList.toggle("overdue", baseRemaining < 0);
       els.timerStatus.textContent = baseRemaining >= 0
-        ? `Base expectation: ${Math.round(baseAllowedSeconds / 60)} minutes per app in this queue.`
-        : `Over base expectation by ${formatDuration(Math.abs(baseRemaining))}.`;
+        ? `Base expectation: ${Math.round(baseAllowedSeconds / 60)} minutes per app in this queue. ${adherenceText}`
+        : `Over base expectation by ${formatDuration(Math.abs(baseRemaining))}. ${adherenceText}`;
       els.timerProgress.style.width = `${progress}%`;
       updateDocumentTitle(baseTimerText);
       notifyOneMinuteRemaining(segment, queue, baseRemaining, baseAllowedSeconds);
@@ -1313,6 +1426,7 @@ dialog::backdrop {
       renderStats();
       renderDayTimeline();
       renderBreakdown();
+      renderLiveTracker();
       renderCurrentSegmentDetails();
       renderTimer();
       saveState();
@@ -1452,6 +1566,15 @@ dialog::backdrop {
         }).join("")
         : `<p class="subtle">No current plan segments.</p>`;
 
+      const adherenceHtml = getQueueSwitchRows().length
+        ? getQueueSwitchRows().map(entry => {
+          const queue = getQueue(entry.queueId);
+          const planned = entry.plannedQueueId ? getQueue(entry.plannedQueueId) : null;
+          const status = planned ? (planned.id === entry.queueId ? "On plan" : `Off plan · planned ${planned.name}`) : "Outside productive plan";
+          return `<div class="mini-table-row"><strong>${formatClock(entry.at)} · ${escapeHtml(queue?.name || "Missing queue")}</strong><span>${escapeHtml(status)}</span><span>${escapeHtml(entry.source || "manual")}</span></div>`;
+        }).join("")
+        : `<p class="subtle">No manual queue changes were logged.</p>`;
+
       els.reviewContent.innerHTML = `
         <section class="stats-grid">
           <article class="stat"><div class="value">${completed}</div><div class="label">Completed today</div></article>
@@ -1460,6 +1583,7 @@ dialog::backdrop {
           <article class="stat"><div class="value">${startExpected === null ? "--" : startExpected.toFixed(1)}</div><div class="label">Start expected total</div></article>
         </section>
         <section class="panel"><h3>Start-of-day plan · ${snapshotTime}</h3><div class="table-like">${startSegmentsHtml}</div></section>
+        <section class="panel"><h3>Manual queue adherence log</h3><div class="table-like">${adherenceHtml}</div></section>
         <section class="panel"><h3>Current / end-of-day plan</h3><div class="table-like">${currentSegmentsHtml}</div></section>
       `;
 
@@ -1483,6 +1607,7 @@ dialog::backdrop {
         segments: structuredClone(state.segments),
         completions: structuredClone(state.completions),
         activityLog: structuredClone(state.activityLog),
+        queueSwitchLog: structuredClone(getQueueSwitchRows()),
         startingSnapshot: structuredClone(state.startingSnapshot)
       });
       state.segments = [];
@@ -1493,6 +1618,9 @@ dialog::backdrop {
       state.selectedSegmentId = null;
       state.timerSegmentId = null;
       state.timeBankSeconds = 0;
+      state.activeQueueId = null;
+      state.activeQueueStartedAt = null;
+      state.queueSwitchLog = [];
       resetOneMinuteNotification();
       renderAll();
     }
@@ -1559,11 +1687,10 @@ dialog::backdrop {
       }
 
       if (selectSegmentId) {
-        state.selectedSegmentId = selectSegmentId;
-        state.timerSegmentId = null;
-        state.timerStartedAt = null;
-        resetOneMinuteNotification();
-        logActivity("plan", "Manually selected active segment.");
+        const segment = state.segments.find(item => item.id === selectSegmentId);
+        const queue = segment ? getQueue(segment.queueId) : null;
+        if (!queue || !isProductiveQueue(queue)) return alert("Choose a productive queue to track as live work.");
+        setActiveQueue(queue.id, "segment shortcut");
         renderAll();
       }
 
@@ -1611,6 +1738,10 @@ dialog::backdrop {
     els.addSegmentBtn.addEventListener("click", addSegment);
     els.sortSegmentsBtn.addEventListener("click", () => { sortSegments(); renderAll(); });
     els.completeAppBtn.addEventListener("click", completeApp);
+    els.completionQueue.addEventListener("change", () => {
+      setActiveQueue(els.completionQueue.value, "manual");
+      renderAll();
+    });
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
@@ -1620,6 +1751,7 @@ dialog::backdrop {
     setInterval(() => {
       renderTimer();
       renderStats();
+      renderLiveTracker();
       renderCurrentSegmentDetails();
       renderDayTimeline();
     }, 1000);
