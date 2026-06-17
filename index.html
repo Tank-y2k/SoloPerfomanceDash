@@ -210,7 +210,7 @@ input:focus, select:focus, textarea:focus {
   font-size: 0.85rem;
 }
 
-.timer-card {
+.tracker-card {
   text-align: center;
   padding: 28px 20px;
   border-radius: 24px;
@@ -218,29 +218,20 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid rgba(94, 234, 212, 0.24);
 }
 
-.timer-label {
+.tracker-label {
   color: var(--muted);
   text-transform: uppercase;
   letter-spacing: 0.12em;
   font-size: 0.8rem;
 }
 
-.timer {
-  margin: 8px 0;
-  font-size: clamp(3rem, 8vw, 6rem);
-  font-weight: 800;
-  letter-spacing: -0.08em;
-  line-height: 1;
-}
-
-.timer-secondary {
+.tracker-meta {
   color: var(--muted);
   font-size: 1.05rem;
-  margin-bottom: 6px;
+  margin: 8px 0 6px;
 }
 
-.timer.overdue { color: var(--danger); }
-.timer-status { color: var(--muted); }
+.tracker-status { color: var(--muted); }
 
 .active-queue {
   font-size: 1.1rem;
@@ -395,21 +386,6 @@ input:focus, select:focus, textarea:focus {
   background: var(--queue-color, var(--accent-strong));
 }
 
-.progress-bar {
-  width: 100%;
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  margin-top: 10px;
-}
-
-.progress-fill {
-  height: 100%;
-  width: 0%;
-  background: var(--accent-strong);
-  transition: width 0.2s ease;
-}
 
 .day-timeline {
   display: flex;
@@ -525,15 +501,11 @@ dialog::backdrop {
       </section>
     </header><section class="grid">
   <section class="panel main-panel stack">
-    <div class="timer-card">
-      <div class="timer-label">Current App Timer</div>
+    <div class="tracker-card">
+      <div class="tracker-label">Current Queue Tracker</div>
       <div class="active-queue" id="activeQueueName">No active queue</div>
-      <div class="timer" id="timerDisplay">--:--</div>
-      <div class="timer-secondary" id="timerBankDisplay">Bank: --</div>
-      <div class="timer-status" id="timerStatus">Add a segment covering the current time, or manually select one below.</div>
-      <div class="progress-bar">
-        <div class="progress-fill" id="timerProgress"></div>
-      </div>
+      <div class="tracker-meta" id="trackerStartedAt">Select a queue to start tracking actual work.</div>
+      <div class="tracker-status" id="trackerStatus">Queue selections and completed apps are saved for CSV export.</div>
     </div>
 
     <div class="row between">
@@ -577,31 +549,12 @@ dialog::backdrop {
           <div class="value" id="completedCount">0</div>
           <div class="label">Apps completed</div>
         </article>
-        <article class="stat" id="paceStat">
-          <div class="value" id="paceValue">0.0</div>
-          <div class="label">Ahead / behind pace</div>
+        <article class="stat">
+          <div class="value" id="queueSwitchCount">0</div>
+          <div class="label">Queue changes tracked</div>
         </article>
       </div>
     </section>
-
-    <div class="stats-grid four">
-      <article class="stat">
-        <div class="value" id="expectedCount">0.0</div>
-        <div class="label">Expected by now</div>
-      </article>
-      <article class="stat" id="efficiencyStat">
-        <div class="value" id="dailyEfficiencyValue">--</div>
-        <div class="label">Daily efficiency vs now</div>
-      </article>
-      <article class="stat">
-        <div class="value" id="remainingExpectedCount">0.0</div>
-        <div class="label">Still expected today</div>
-      </article>
-      <article class="stat">
-        <div class="value" id="dayExpectedCount">0.0</div>
-        <div class="label">Expected for full day</div>
-      </article>
-    </div>
 
     <section class="panel-soft stack">
       <h2>Live Queue Tracker</h2>
@@ -661,7 +614,7 @@ dialog::backdrop {
         <h2>Completed Apps</h2>
         <button class="btn small" value="close">Close</button>
       </div>
-      <p class="subtle">Delete mistaken entries and recalculate the time bank.</p>
+      <p class="subtle">Delete mistaken entries from today’s historical completion log.</p>
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
   </dialog>  <dialog id="planDialog">
@@ -705,10 +658,6 @@ dialog::backdrop {
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
     const BASE_TITLE = "Queue Performance Dashboard";
-    const ONE_MINUTE_SECONDS = 60;
-
-    let notificationPermissionRequested = false;
-    let oneMinuteNotificationKey = null;
 
     const defaultState = {
       queues: [
@@ -724,10 +673,6 @@ dialog::backdrop {
       archive: [],
       activityLog: [],
       startingSnapshot: null,
-      timerStartedAt: null,
-      selectedSegmentId: null,
-      timerSegmentId: null,
-      timeBankSeconds: 0,
       activeQueueId: null,
       activeQueueStartedAt: null,
       queueSwitchLog: [],
@@ -764,22 +709,14 @@ dialog::backdrop {
       sortSegmentsBtn: document.getElementById("sortSegmentsBtn"),
       segmentList: document.getElementById("segmentList"),
       activeQueueName: document.getElementById("activeQueueName"),
-      timerDisplay: document.getElementById("timerDisplay"),
-      timerBankDisplay: document.getElementById("timerBankDisplay"),
-      timerStatus: document.getElementById("timerStatus"),
-      timerProgress: document.getElementById("timerProgress"),
+      trackerStartedAt: document.getElementById("trackerStartedAt"),
+      trackerStatus: document.getElementById("trackerStatus"),
       completionQueue: document.getElementById("completionQueue"),
       completionUid: document.getElementById("completionUid"),
       completionOutcome: document.getElementById("completionOutcome"),
       completeAppBtn: document.getElementById("completeAppBtn"),
       completedCount: document.getElementById("completedCount"),
-      expectedCount: document.getElementById("expectedCount"),
-      dayExpectedCount: document.getElementById("dayExpectedCount"),
-      paceValue: document.getElementById("paceValue"),
-      paceStat: document.getElementById("paceStat"),
-      efficiencyStat: document.getElementById("efficiencyStat"),
-      dailyEfficiencyValue: document.getElementById("dailyEfficiencyValue"),
-      remainingExpectedCount: document.getElementById("remainingExpectedCount"),
+      queueSwitchCount: document.getElementById("queueSwitchCount"),
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       liveTrackerDetails: document.getElementById("liveTrackerDetails"),
       breakdownList: document.getElementById("breakdownList"),
@@ -796,7 +733,12 @@ dialog::backdrop {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return structuredClone(defaultState);
         const parsed = JSON.parse(raw);
-        return { ...structuredClone(defaultState), ...parsed };
+        const migrated = { ...structuredClone(defaultState), ...parsed };
+        delete migrated.timerStartedAt;
+        delete migrated.selectedSegmentId;
+        delete migrated.timerSegmentId;
+        delete migrated.timeBankSeconds;
+        return migrated;
       } catch {
         return structuredClone(defaultState);
       }
@@ -846,75 +788,11 @@ dialog::backdrop {
       return now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
     }
 
-    function formatDuration(seconds) {
-      const sign = seconds < 0 ? "-" : "";
-      const abs = Math.abs(Math.round(seconds));
-      const mins = Math.floor(abs / 60).toString().padStart(2, "0");
-      const secs = (abs % 60).toString().padStart(2, "0");
-      return `${sign}${mins}:${secs}`;
-    }
-
-    function updateDocumentTitle(timerText = "--:--") {
-      document.title = `${timerText} - ${BASE_TITLE}`;
-    }
-
-    function canUseNotifications() {
-      return "Notification" in window && window.isSecureContext;
-    }
-
-    function requestNotificationPermission() {
-      if (!canUseNotifications() || notificationPermissionRequested || Notification.permission !== "default") return;
-      notificationPermissionRequested = true;
-      Notification.requestPermission();
-    }
-
-    function resetOneMinuteNotification(key = null) {
-      oneMinuteNotificationKey = key;
-    }
-
-    function notifyOneMinuteRemaining(segment, queue, remainingSeconds, totalSeconds) {
-      if (!canUseNotifications() || Notification.permission !== "granted") return;
-      const key = `${segment.id}:${state.timerStartedAt}`;
-      if (oneMinuteNotificationKey === key || totalSeconds <= ONE_MINUTE_SECONDS || remainingSeconds <= 0 || remainingSeconds > ONE_MINUTE_SECONDS) return;
-
-      oneMinuteNotificationKey = key;
-      new Notification("1 minute remaining", {
-        body: `${queue?.name || "Current app"} timer has ${formatDuration(remainingSeconds)} left.`,
-        tag: "queue-dashboard-one-minute",
-        renotify: true
-      });
-    }
-
-    function formatMinutes(seconds) {
-      const sign = seconds < 0 ? "-" : "";
-      const absMinutes = Math.round(Math.abs(seconds) / 60);
-      const hours = Math.floor(absMinutes / 60);
-      const minutes = absMinutes % 60;
-      if (hours > 0) return `${sign}${hours}h ${minutes}m`;
-      return `${sign}${minutes}m`;
-    }
-
     function formatHoursMinutes(hoursValue) {
       const totalMinutes = Math.round(Math.max(0, hoursValue) * 60);
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
       return `${hours}h ${minutes}m`;
-    }
-
-    function getSecondsPerApp(queue) {
-      return isProductiveQueue(queue) ? 3600 / Number(queue.rate) : 0;
-    }
-
-    function getCompletionEfficiency(completion) {
-      const queue = getQueue(completion.queueId);
-      const secondsPerApp = getSecondsPerApp(queue);
-      if (!secondsPerApp || !completion.durationSeconds) return 0;
-      return (secondsPerApp / completion.durationSeconds) * 100;
-    }
-
-    function getThroughputEfficiency(completed, expected) {
-      if (expected <= 0) return 0;
-      return (completed / expected) * 100;
     }
 
     function formatClock(iso) {
@@ -972,16 +850,6 @@ dialog::backdrop {
       return Array.isArray(state.queueSwitchLog) ? state.queueSwitchLog : [];
     }
 
-    function getQueueTrackedSeconds(queueId) {
-      if (!queueId) return 0;
-      const sorted = getQueueSwitchRows().slice().sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime());
-      return sorted.reduce((sum, entry, index) => {
-        if (entry.queueId !== queueId) return sum;
-        const endAt = sorted[index + 1]?.at || nowIso();
-        return sum + Math.max(0, (new Date(endAt).getTime() - new Date(entry.at).getTime()) / 1000);
-      }, 0);
-    }
-
     function setActiveQueue(queueId, source = "manual") {
       const queue = getQueue(queueId);
       if (!queue || !isProductiveQueue(queue)) return;
@@ -994,10 +862,6 @@ dialog::backdrop {
 
       state.activeQueueId = queueId;
       state.activeQueueStartedAt = changedAt;
-      state.timerSegmentId = null;
-      state.timerStartedAt = changedAt;
-      resetOneMinuteNotification();
-
       const adherenceText = plannedQueue
         ? (plannedQueue.id === queueId ? "matches the original plan" : `planned ${plannedQueue.name}`)
         : "outside planned productive time";
@@ -1020,58 +884,6 @@ dialog::backdrop {
       return Math.max(0, end - start);
     }
 
-    function getRemainingSegmentSeconds(segment, atIso = nowIso()) {
-      if (!segment) return null;
-      const segmentEnd = new Date(atIso);
-      const [endHours, endMinutes] = segment.end.split(":").map(Number);
-      segmentEnd.setHours(endHours, endMinutes, 0, 0);
-      return Math.max(0, (segmentEnd.getTime() - new Date(atIso).getTime()) / 1000);
-    }
-
-    function clampTimeBankToSegment(segment, atIso = nowIso()) {
-      const remainingSegmentSeconds = getRemainingSegmentSeconds(segment, atIso);
-      if (remainingSegmentSeconds === null) return;
-      state.timeBankSeconds = Math.min(state.timeBankSeconds, remainingSegmentSeconds);
-    }
-
-    function getSegmentBoundaryIso(segment, timeText, atIso = nowIso()) {
-      const boundary = new Date(atIso);
-      const [hours, minutes] = timeText.split(":").map(Number);
-      boundary.setHours(hours, minutes, 0, 0);
-      return boundary.toISOString();
-    }
-
-    function syncTimerToSegment(segment, atIso = nowIso()) {
-      if (!segment) return;
-      const nowMs = new Date(atIso).getTime();
-      const segmentStartIso = getSegmentBoundaryIso(segment, segment.start, atIso);
-      const completionsInSegment = state.completions.filter(app => app.segmentId === segment.id);
-      const latestCompletion = completionsInSegment.length
-        ? completionsInSegment.reduce((latest, app) => new Date(app.at).getTime() > new Date(latest.at).getTime() ? app : latest)
-        : null;
-
-      if (state.timerSegmentId !== segment.id) {
-        state.timerSegmentId = segment.id;
-        state.timerStartedAt = latestCompletion?.at || segmentStartIso;
-        resetOneMinuteNotification();
-      }
-
-      if (!state.timerStartedAt) {
-        state.timerStartedAt = latestCompletion?.at || segmentStartIso;
-        resetOneMinuteNotification();
-      }
-
-      const startedAtMs = new Date(state.timerStartedAt).getTime();
-      if (startedAtMs > nowMs) {
-        state.timerStartedAt = atIso;
-        resetOneMinuteNotification();
-      }
-      if (startedAtMs < new Date(segmentStartIso).getTime() && !latestCompletion) {
-        state.timerStartedAt = segmentStartIso;
-        resetOneMinuteNotification();
-      }
-    }
-
     function getSegmentExpectedApps(segment, untilMinutes = null) {
       const queue = getQueue(segment.queueId);
       if (!queue) return 0;
@@ -1079,58 +891,6 @@ dialog::backdrop {
       const effectiveEnd = untilMinutes === null ? end : Math.min(Math.max(untilMinutes, start), end);
       const minutes = Math.max(0, effectiveEnd - start);
       return (minutes / 60) * Number(queue.rate || 0);
-    }
-
-    function getExpectedByNow() {
-      const current = nowMinutes();
-      return state.segments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment, current), 0);
-    }
-
-    function getSegmentLabelForTime(iso) {
-      const date = new Date(iso);
-      const segment = getSegmentAtDate(date, true);
-      if (!segment) return "Outside planned segments";
-      const queue = getQueue(segment.queueId);
-      return `${queue?.name || "Missing queue"} (${segment.start}-${segment.end})`;
-    }
-
-    function buildEtcProjection(appCount = 5) {
-      const now = nowDate();
-      const segment = getCurrentSegment();
-      if (!segment) return [];
-
-      syncTimerToSegment(segment, now.toISOString());
-      const queue = getQueue(segment.queueId);
-      if (!isProductiveQueue(queue)) return [];
-
-      const secondsPerApp = getSecondsPerApp(queue);
-      const elapsed = Math.max(0, (now.getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
-      const firstRemaining = Math.max(0, Math.max(1, secondsPerApp + state.timeBankSeconds) - elapsed);
-      const projections = [];
-      let cursorMs = now.getTime() + firstRemaining * 1000;
-      projections.push({ index: 1, etaIso: new Date(cursorMs).toISOString() });
-
-      for (let i = 2; i <= appCount; i += 1) {
-        let cursorSegment = getSegmentAtDate(new Date(cursorMs), true);
-        if (!cursorSegment) break;
-
-        if (!isProductiveQueue(getQueue(cursorSegment.queueId))) {
-          const resumeAt = new Date(cursorMs);
-          const [endHour, endMinute] = cursorSegment.end.split(":").map(Number);
-          resumeAt.setHours(endHour, endMinute, 0, 0);
-          cursorMs = resumeAt.getTime();
-          cursorSegment = getSegmentAtDate(new Date(cursorMs), true);
-        }
-
-        if (!cursorSegment) break;
-        const cursorQueue = getQueue(cursorSegment.queueId);
-        if (!isProductiveQueue(cursorQueue)) break;
-
-        cursorMs += getSecondsPerApp(cursorQueue) * 1000;
-        projections.push({ index: i, etaIso: new Date(cursorMs).toISOString() });
-      }
-
-      return projections;
     }
 
     function getExpectedFullDay(segments = state.segments, queues = state.queues) {
@@ -1149,12 +909,6 @@ dialog::backdrop {
         return sum;
       }, 0);
       return minutes / 60;
-    }
-
-    function resetCurrentTimer() {
-      state.timerStartedAt = nowIso();
-      resetOneMinuteNotification();
-      saveState();
     }
 
     function renderQueueOptions() {
@@ -1226,7 +980,8 @@ dialog::backdrop {
               <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
               <div class="log-meta">Outcome: ${escapeHtml(app.outcome || "Unspecified")}</div>
               <div class="log-meta log-meta-inline">
-                <span>${formatDuration(app.durationSeconds)}</span><span>·</span><span>${getCompletionEfficiency(app).toFixed(0)}%</span><span>·</span><span>${formatClock(app.at)}</span>
+                <span>Completed ${formatClock(app.at)}</span>
+                ${app.activeQueueStartedAt ? `<span>·</span><span>Queue selected ${formatClock(app.activeQueueStartedAt)}</span>` : ""}
               </div>
               <div class="row row-end"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
             </article>
@@ -1251,25 +1006,10 @@ dialog::backdrop {
     }
 
     function renderStats() {
-      const completed = state.completions.length;
-      const expectedByNow = getExpectedByNow();
-      const expectedFullDay = getExpectedFullDay();
-      const remainingExpected = Math.max(0, expectedFullDay - Math.max(completed, expectedByNow));
-      const efficiency = getThroughputEfficiency(completed, expectedByNow);
-      const pace = completed - expectedByNow;
-      els.completedCount.textContent = completed;
-      els.expectedCount.textContent = expectedByNow.toFixed(1);
-      els.dailyEfficiencyValue.textContent = expectedByNow > 0 ? `${efficiency.toFixed(0)}%` : "--";
-      els.remainingExpectedCount.textContent = remainingExpected.toFixed(1);
-      els.dayExpectedCount.textContent = expectedFullDay.toFixed(1);
-      els.paceValue.textContent = `${pace >= 0 ? "+" : ""}${pace.toFixed(1)} · bank ${formatMinutes(state.timeBankSeconds)}`;
+      els.completedCount.textContent = state.completions.length;
+      els.queueSwitchCount.textContent = getQueueSwitchRows().length;
       els.productiveHours.textContent = formatHoursMinutes(getPlannedHours(true));
       els.nonProductiveHours.textContent = formatHoursMinutes(getPlannedHours(false));
-
-      els.paceStat.classList.remove("good", "bad", "warn");
-      els.paceStat.classList.add(pace >= 0 ? "good" : pace <= -1 ? "bad" : "warn");
-      els.efficiencyStat.classList.remove("good", "bad", "warn");
-      els.efficiencyStat.classList.add(efficiency >= 100 ? "good" : efficiency >= 85 ? "warn" : "bad");
     }
 
     function renderDayTimeline() {
@@ -1295,21 +1035,20 @@ dialog::backdrop {
         const queueSegments = state.segments.filter(segment => segment.queueId === queue.id);
         const expected = queueSegments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment), 0);
         const plannedHours = queueSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0) / 60;
-        const queueCompletions = state.completions.filter(app => app.queueId === queue.id);
-        const completed = queueCompletions.length;
-        const throughputEfficiency = getThroughputEfficiency(completed, expected);
-        return { queue, expected, plannedHours, completed, throughputEfficiency, variance: completed - expected };
-      }).filter(row => row.expected > 0 || row.completed > 0 || row.plannedHours > 0);
+        const completed = state.completions.filter(app => app.queueId === queue.id).length;
+        const switches = getQueueSwitchRows().filter(entry => entry.queueId === queue.id).length;
+        return { queue, expected, plannedHours, completed, switches };
+      }).filter(row => row.expected > 0 || row.completed > 0 || row.plannedHours > 0 || row.switches > 0);
 
       els.breakdownList.innerHTML = byQueue.length
         ? byQueue.map(row => `
           <div class="mini-table-row">
             <strong class="row" style="gap: 8px;"><span class="swatch" style="--queue-color: ${row.queue.color || "#14b8a6"}"></span>${escapeHtml(row.queue.name)}</strong>
-            <span class="subtle">${formatHoursMinutes(row.plannedHours)} · ${row.completed} done / ${row.expected.toFixed(1)} expected · throughput ${row.throughputEfficiency.toFixed(0)}%</span>
-            <span class="pill ${row.variance >= 0 ? "good" : "bad"}">${row.variance >= 0 ? "+" : ""}${row.variance.toFixed(1)}</span>
+            <span class="subtle">${formatHoursMinutes(row.plannedHours)} planned · ${row.expected.toFixed(1)} expected · ${row.completed} completed</span>
+            <span class="pill">${row.switches} switches</span>
           </div>
         `).join("")
-        : `<p class="subtle">No queue expectations yet.</p>`;
+        : `<p class="subtle">No queue history yet.</p>`;
     }
 
     function renderLiveTracker() {
@@ -1337,7 +1076,7 @@ dialog::backdrop {
         <strong>${escapeHtml(activeQueue.name)}</strong> is being worked now.
         <span class="pill ${adherenceClass}" style="margin-left: 6px;">${plannedQueue?.id === activeQueue.id ? "On plan" : "Off plan"}</span><br>
         Tracking started ${trackingStarted}. Planned right now: ${escapeHtml(plannedQueue?.name || "No productive queue")}${plannedSegment ? ` (${plannedSegment.start}-${plannedSegment.end})` : ""}.<br>
-        Tracked on this queue today: ${formatMinutes(getQueueTrackedSeconds(activeQueue.id))}.
+        Queue changes and app completions are recorded with timestamps for export.
         ${switchHtml}
       `;
     }
@@ -1345,76 +1084,40 @@ dialog::backdrop {
     function renderCurrentSegmentDetails() {
       const segment = getCurrentSegment();
       if (!segment) {
-        els.currentSegmentDetails.textContent = "No active segment. Either your plan has a gap, or time itself is being unhelpful again.";
+        els.currentSegmentDetails.textContent = "No active plan segment right now.";
         return;
       }
 
       const queue = getQueue(segment.queueId);
       const expectedSegment = getSegmentExpectedApps(segment);
-      const completionsInSegment = state.completions.filter(app => app.segmentId === segment.id);
-      const completedInSegment = completionsInSegment.length;
-      const throughputEfficiencyInSegment = getThroughputEfficiency(completedInSegment, expectedSegment);
-      const etcProjection = buildEtcProjection(5);
-      const etcHtml = etcProjection.length
-        ? `<div style="margin-top: 8px;"><strong>ETC at 100% efficiency:</strong><br>${etcProjection.map(item => `App ${completedInSegment + item.index}: ${formatClock(item.etaIso)} · ${escapeHtml(getSegmentLabelForTime(item.etaIso))}`).join("<br>")}</div>`
-        : `<div style="margin-top: 8px;">ETC unavailable (non-productive or outside planned segments).</div>`;
+      const completedInSegment = state.completions.filter(app => app.segmentId === segment.id).length;
       els.currentSegmentDetails.innerHTML = `
         <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
         ${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
-        ${completedInSegment} completed while this segment was active · ${throughputEfficiencyInSegment.toFixed(0)}% throughput efficiency.
-        ${etcHtml}
+        ${completedInSegment} completed while this segment was active.
       `;
     }
 
     function renderTimer() {
-      const segment = getCurrentSegment();
       const activeQueue = getActiveQueue();
       if (!activeQueue) {
         els.activeQueueName.textContent = "No active queue";
-        els.timerDisplay.textContent = "--:--";
-        els.timerBankDisplay.textContent = "Bank: --";
-        els.timerDisplay.classList.remove("overdue");
-        els.timerStatus.textContent = "Choose the live active queue you are working. This logs actual queue changes without editing today’s plan.";
-        els.timerProgress.style.width = "0%";
-        updateDocumentTitle();
-        resetOneMinuteNotification();
+        els.trackerStartedAt.textContent = "Select a queue to start tracking actual work.";
+        els.trackerStatus.textContent = "Queue selections and completed apps are saved for CSV export.";
+        document.title = BASE_TITLE;
         return;
       }
 
-      const currentIso = nowIso();
-      if (!state.activeQueueId && segment) {
-        syncTimerToSegment(segment, currentIso);
-      } else if (!state.timerStartedAt) {
-        state.timerStartedAt = state.activeQueueStartedAt || currentIso;
-      }
-
-      const queue = activeQueue;
-      const secondsPerApp = 3600 / Number(queue.rate);
-      const baseAllowedSeconds = Math.max(1, secondsPerApp);
-      const allowedSecondsWithBank = Math.max(1, baseAllowedSeconds + state.timeBankSeconds);
-      const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
-      const baseRemaining = baseAllowedSeconds - elapsed;
-      const remainingWithBank = allowedSecondsWithBank - elapsed;
-      const progress = Math.min(100, (elapsed / baseAllowedSeconds) * 100);
-
-      const timerText = formatDuration(baseRemaining);
-      const baseTimerText = formatDuration(remainingWithBank);
       const plannedSegment = getPlannedSegmentAtNow();
       const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
-      const adherenceText = plannedQueue?.id === queue.id
-        ? "Live queue matches the original plan."
-        : `Live queue is tracking actual work; original plan says ${plannedQueue?.name || "no productive queue"}.`;
+      const status = plannedQueue?.id === activeQueue.id
+        ? "Live queue matches the current plan segment."
+        : `Live queue is tracking actual work; current plan says ${plannedQueue?.name || "no productive queue"}.`;
 
-      els.activeQueueName.textContent = queue?.name || "Missing queue";
-      els.timerDisplay.textContent = timerText;
-      els.timerBankDisplay.textContent = `Bank: ${formatMinutes(state.timeBankSeconds)} · with bank ${formatDuration(remainingWithBank)}`;
-      els.timerDisplay.classList.toggle("overdue", baseRemaining < 0);
-      els.timerStatus.textContent = baseRemaining >= 0
-        ? `Base expectation: ${Math.round(baseAllowedSeconds / 60)} minutes per app in this queue. ${adherenceText}`
-        : `Over base expectation by ${formatDuration(Math.abs(baseRemaining))}. ${adherenceText}`;
-      els.timerProgress.style.width = `${progress}%`;
-      updateDocumentTitle(baseTimerText);
-      notifyOneMinuteRemaining(segment, queue, baseRemaining, baseAllowedSeconds);
+      els.activeQueueName.textContent = activeQueue.name;
+      els.trackerStartedAt.textContent = state.activeQueueStartedAt ? `Tracking since ${formatClock(state.activeQueueStartedAt)}.` : "Tracking from current plan.";
+      els.trackerStatus.textContent = status;
+      document.title = `${activeQueue.name} - ${BASE_TITLE}`;
     }
 
     function renderAll() {
@@ -1477,13 +1180,6 @@ dialog::backdrop {
 
       const segment = getCurrentSegment();
       const currentIso = nowIso();
-      const startedAt = state.timerStartedAt || currentIso;
-      const durationSeconds = Math.max(1, (new Date(currentIso).getTime() - new Date(startedAt).getTime()) / 1000);
-      const expectedSeconds = getSecondsPerApp(queue);
-      const varianceSeconds = expectedSeconds - durationSeconds;
-      state.timeBankSeconds += varianceSeconds;
-      clampTimeBankToSegment(segment, currentIso);
-
       const completion = {
         id: crypto.randomUUID(),
         at: currentIso,
@@ -1491,35 +1187,50 @@ dialog::backdrop {
         segmentId: segment?.id || null,
         uid,
         outcome,
-        durationSeconds
+        activeQueueStartedAt: state.activeQueueStartedAt || null
       };
       state.completions.push(completion);
 
-      const efficiency = getCompletionEfficiency(completion);
-      resetCurrentTimer();
       els.completionUid.value = "";
       if (els.completionOutcome) els.completionOutcome.value = "";
-      logActivity("complete", `Completed app ${uid} (${outcome}) from ${queue.name} in ${formatDuration(durationSeconds)} (${efficiency.toFixed(0)}% efficiency). Bank now ${formatMinutes(state.timeBankSeconds)}.`);
+      logActivity("complete", `Completed app ${uid} (${outcome}) from ${queue.name}.`);
       renderAll();
     }
 
     function exportCompletionsCsv() {
-      if (!state.completions.length) return alert("No completion history to export yet.");
-      const lines = ["uid,queue,outcome,completed_at,duration_minutes,expected_minutes,efficiency_percent,segment"];
+      if (!state.completions.length && !getQueueSwitchRows().length) return alert("No queue tracking history to export yet.");
+      const lines = ["record_type,uid,queue,outcome,recorded_at,queue_selected_at,planned_queue,planned_segment"];
+
+      for (const entry of getQueueSwitchRows().slice().reverse()) {
+        const queue = getQueue(entry.queueId);
+        const planned = entry.plannedQueueId ? getQueue(entry.plannedQueueId) : null;
+        const plannedSegment = entry.plannedSegmentId ? state.segments.find(item => item.id === entry.plannedSegmentId) : null;
+        const row = [
+          "queue_switch",
+          "",
+          queue?.name || "",
+          entry.source || "",
+          entry.at,
+          entry.at,
+          planned?.name || "",
+          plannedSegment ? `${plannedSegment.start}-${plannedSegment.end}` : ""
+        ].map(value => `"${String(value).replaceAll('"', '""')}"`).join(",");
+        lines.push(row);
+      }
+
       for (const app of state.completions) {
         const queue = getQueue(app.queueId);
-        const expectedMinutes = getSecondsPerApp(queue) / 60;
         const segment = app.segmentId ? state.segments.find(item => item.id === app.segmentId) : null;
-        const segmentLabel = segment ? `${segment.start}-${segment.end}` : "";
+        const plannedQueue = segment ? getQueue(segment.queueId) : null;
         const row = [
+          "completion",
           app.uid || "",
           queue?.name || "",
           app.outcome || "",
           app.at,
-          (app.durationSeconds / 60).toFixed(2),
-          expectedMinutes.toFixed(2),
-          getCompletionEfficiency(app).toFixed(2),
-          segmentLabel
+          app.activeQueueStartedAt || "",
+          plannedQueue?.name || "",
+          segment ? `${segment.start}-${segment.end}` : ""
         ].map(value => `"${String(value).replaceAll('"', '""')}"`).join(",");
         lines.push(row);
       }
@@ -1528,10 +1239,10 @@ dialog::backdrop {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `queue-completions-${nowIso().slice(0, 10)}.csv`;
+      link.download = `queue-history-${nowIso().slice(0, 10)}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      logActivity("export", `Exported CSV for ${state.completions.length} apps.`);
+      logActivity("export", `Exported CSV for ${state.completions.length} completions and ${getQueueSwitchRows().length} queue changes.`);
     }
 
     function saveSnapshot() {
@@ -1614,31 +1325,12 @@ dialog::backdrop {
       state.completions = [];
       state.activityLog = [];
       state.startingSnapshot = null;
-      state.timerStartedAt = null;
-      state.selectedSegmentId = null;
-      state.timerSegmentId = null;
-      state.timeBankSeconds = 0;
       state.activeQueueId = null;
       state.activeQueueStartedAt = null;
       state.queueSwitchLog = [];
-      resetOneMinuteNotification();
       renderAll();
     }
 
-
-    function recalculateTimeBankSeconds() {
-      state.timeBankSeconds = state.completions
-        .slice()
-        .sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
-        .reduce((sum, app) => {
-          const queue = getQueue(app.queueId);
-          const nextBank = sum + (getSecondsPerApp(queue) - Number(app.durationSeconds || 0));
-          const segment = app.segmentId ? state.segments.find(item => item.id === app.segmentId) : null;
-          if (!segment) return nextBank;
-          const remainingSegmentSeconds = getRemainingSegmentSeconds(segment, app.at);
-          return Math.min(nextBank, remainingSegmentSeconds);
-        }, 0);
-    }
 
     function escapeHtml(value) {
       return String(value)
@@ -1650,7 +1342,6 @@ dialog::backdrop {
     }
 
     document.addEventListener("click", event => {
-      requestNotificationPermission();
       if (!els.topMenuPanel.contains(event.target) && event.target !== els.menuBtn) {
         els.topMenuPanel.classList.add("hidden");
       }
@@ -1713,18 +1404,11 @@ dialog::backdrop {
         const completion = state.completions.find(item => item.id === deleteCompletionId);
         if (!completion) return;
         state.completions = state.completions.filter(item => item.id !== deleteCompletionId);
-        recalculateTimeBankSeconds();
         logActivity("complete", `Deleted completion ${completion.uid || completion.id}.`);
         renderAll();
       }
       if (deleteSegmentId) {
         state.segments = state.segments.filter(segment => segment.id !== deleteSegmentId);
-        if (state.selectedSegmentId === deleteSegmentId) state.selectedSegmentId = null;
-        if (state.timerSegmentId === deleteSegmentId) {
-          state.timerSegmentId = null;
-          state.timerStartedAt = null;
-          resetOneMinuteNotification();
-        }
         logActivity("plan", "Deleted segment from plan.");
         renderAll();
       }
@@ -1748,13 +1432,6 @@ dialog::backdrop {
     els.exportCsvBtn.addEventListener("click", exportCompletionsCsv);
     els.resetBtn.addEventListener("click", resetDay);
 
-    setInterval(() => {
-      renderTimer();
-      renderStats();
-      renderLiveTracker();
-      renderCurrentSegmentDetails();
-      renderDayTimeline();
-    }, 1000);
 
     els.completionUid.value = "";
     if (els.completionOutcome) els.completionOutcome.value = "";
