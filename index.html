@@ -428,7 +428,7 @@ input:focus, select:focus, textarea:focus {
 
 .day-timeline {
   display: flex;
-  height: 34px;
+  height: 38px;
   overflow: hidden;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -440,6 +440,34 @@ input:focus, select:focus, textarea:focus {
   background: var(--queue-color, var(--accent-strong));
   opacity: 0.9;
   position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.timeline-label {
+  padding: 0 7px;
+  color: #fff;
+  font-size: .75rem;
+  font-weight: 800;
+  line-height: 1;
+  text-shadow: 0 1px 3px rgba(0,0,0,.8);
+  white-space: nowrap;
+}
+
+.overview-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.overview-heading h2 { margin-bottom: 0; }
+.expected-total {
+  color: var(--text);
+  background: rgba(94, 234, 212, .09);
+  border-color: rgba(94, 234, 212, .25);
 }
 
 .table-like { display: grid; gap: 8px; }
@@ -580,7 +608,10 @@ dialog::backdrop {
     </div>
 
     <section class="stack">
-      <h2>Day Overview</h2>
+      <div class="overview-heading">
+        <h2>Day Overview</h2>
+        <span class="pill expected-total" id="expectedAppsTotal">0 apps expected</span>
+      </div>
       <div class="day-timeline" id="dayTimeline"></div>
       <div class="stats-grid four">
         <article class="stat">
@@ -768,6 +799,7 @@ dialog::backdrop {
       archiveHistory: document.getElementById("archiveHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
+      expectedAppsTotal: document.getElementById("expectedAppsTotal"),
       productiveHours: document.getElementById("productiveHours"),
       nonProductiveHours: document.getElementById("nonProductiveHours")
     };
@@ -1078,6 +1110,9 @@ dialog::backdrop {
     }
 
     function renderDayTimeline() {
+      const roundedExpectedTotal = state.segments.reduce((sum, segment) => sum + Math.ceil(getSegmentExpectedApps(segment)), 0);
+      els.expectedAppsTotal.textContent = `${roundedExpectedTotal} ${roundedExpectedTotal === 1 ? "app" : "apps"} expected`;
+
       if (!state.segments.length) {
         els.dayTimeline.innerHTML = `<div class="timeline-block" style="width: 100%; background: transparent;"></div>`;
         return;
@@ -1090,8 +1125,10 @@ dialog::backdrop {
       els.dayTimeline.innerHTML = state.segments.map(segment => {
         const queue = getQueue(segment.queueId);
         const width = (getSegmentMinutes(segment) / total) * 100;
-        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)}`;
-        return `<div class="timeline-block" title="${escapeHtml(title)}" style="width: ${width}%; --queue-color: ${queue?.color || "#14b8a6"};"></div>`;
+        const expected = Math.ceil(getSegmentExpectedApps(segment));
+        const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No apps expected";
+        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${expectedText}`;
+        return `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${width}%; --queue-color: ${queue?.color || "#14b8a6"};">${expected > 0 ? `<span class="timeline-label">${expected} ${expected === 1 ? "app" : "apps"}</span>` : ""}</div>`;
       }).join("");
     }
 
