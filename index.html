@@ -287,6 +287,45 @@ input:focus, select:focus, textarea:focus {
   width: min(880px, calc(100vw - 28px));
 }
 
+.schedule-modal { width: min(980px, calc(100vw - 28px)); }
+.schedule-toolbar {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 190px)) 1fr;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+}
+.schedule-summary { align-self: center; text-align: right; }
+.schedule-table { display: grid; gap: 8px; }
+.schedule-head, .schedule-row {
+  display: grid;
+  grid-template-columns: 42px minmax(180px, 1fr) 125px 125px 110px 88px;
+  gap: 10px;
+  align-items: center;
+}
+.schedule-head {
+  padding: 0 12px;
+  color: var(--muted);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.schedule-row {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255,255,255,.025);
+  box-shadow: inset 4px 0 var(--queue-color, var(--accent-strong));
+}
+.schedule-index { color: var(--muted); font-weight: 800; text-align: center; }
+.schedule-end { font-variant-numeric: tabular-nums; font-weight: 700; }
+.schedule-duration { color: var(--muted); font-size: .85rem; }
+.schedule-empty { padding: 30px; text-align: center; border: 1px dashed var(--border); border-radius: 14px; }
+
 .completion-modal .modal-inner {
   display: flex;
   flex-direction: column;
@@ -476,6 +515,13 @@ dialog::backdrop {
   .top-actions .btn { flex: 1; }
   .stats-grid, .stats-grid.four { grid-template-columns: 1fr; }
   .mini-table-row { grid-template-columns: 1fr; }
+  .schedule-toolbar { grid-template-columns: 1fr 1fr; }
+  .schedule-summary { grid-column: 1 / -1; text-align: left; }
+  .schedule-head { display: none; }
+  .schedule-row { grid-template-columns: 30px 1fr auto; }
+  .schedule-row select { grid-column: 2 / -1; }
+  .schedule-row input { grid-column: 2; }
+  .schedule-duration { display: none; }
 }
 
   </style>
@@ -490,7 +536,7 @@ dialog::backdrop {
         <button class="btn" id="menuBtn">Menu</button>
         <div class="menu-panel hidden" id="topMenuPanel">
           <button class="btn" id="settingsBtn">Queue Settings</button>
-          <button class="btn" id="planBtn">Today’s Queue Plan</button>
+          <button class="btn" id="planBtn">Schedule</button>
           <button class="btn" id="archiveBtn">Archived Days</button>
           <button class="btn" id="snapshotBtn">Save Current Plan</button>
           <button class="btn warning" id="endDayBtn">End Day Review</button>
@@ -617,34 +663,31 @@ dialog::backdrop {
       <p class="subtle">Delete mistaken entries from today’s historical completion log.</p>
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
-  </dialog>  <dialog id="planDialog">
+  </dialog>  <dialog id="planDialog" class="schedule-modal">
     <form method="dialog" class="modal-inner stack">
       <div class="modal-header">
         <h2>Today’s Queue Plan</h2>
         <button class="btn small" value="close">Close</button>
       </div>
-      <p class="subtle">Add queue blocks, including non-productive blocks for breaks, lunch, meetings, or whatever delightful productivity void appears next.</p>
-      <div class="row">
+      <p class="subtle">Set your shift, then add each change of activity. A segment runs until the next one begins; the final segment runs until shift end.</p>
+      <div class="schedule-toolbar">
         <div class="field">
-          <label for="segmentQueue">Queue</label>
-          <select id="segmentQueue"></select>
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label for="segmentStart">Start</label>
-          <input id="segmentStart" type="time" />
+          <label for="shiftStart">Shift starts</label>
+          <input id="shiftStart" type="time" />
         </div>
         <div class="field">
-          <label for="segmentEnd">End</label>
-          <input id="segmentEnd" type="time" />
+          <label for="shiftEnd">Shift ends</label>
+          <input id="shiftEnd" type="time" />
         </div>
+        <div class="schedule-summary subtle" id="scheduleSummary"></div>
       </div>
       <div class="row">
-        <button class="btn primary" id="addSegmentBtn" type="button">Add Segment</button>
-        <button class="btn" id="sortSegmentsBtn" type="button">Sort</button>
+        <button class="btn primary" id="addSegmentBtn" type="button">+ Add activity</button>
       </div>
-      <div class="segment-list" id="segmentList"></div>
+      <div class="schedule-table">
+        <div class="schedule-head"><span>#</span><span>Queue / activity</span><span>Starts</span><span>Ends</span><span>Duration</span><span></span></div>
+        <div id="segmentList" class="stack"></div>
+      </div>
     </form>
   </dialog>  <dialog id="archiveDialog">
     <form method="dialog" class="modal-inner stack">
@@ -668,6 +711,8 @@ dialog::backdrop {
         { id: crypto.randomUUID(), name: "Sole Trader", rate: 2.71, color: "#d6fb0b" },
         { id: crypto.randomUUID(), name: "Sole Trader Resubmissions", rate: 2.75, color: "#f48a0f" }
       ],
+      shiftStart: "09:00",
+      shiftEnd: "17:00",
       segments: [],
       completions: [],
       archive: [],
@@ -702,11 +747,10 @@ dialog::backdrop {
       queueColor: document.getElementById("queueColor"),
       addQueueBtn: document.getElementById("addQueueBtn"),
       queueList: document.getElementById("queueList"),
-      segmentQueue: document.getElementById("segmentQueue"),
-      segmentStart: document.getElementById("segmentStart"),
-      segmentEnd: document.getElementById("segmentEnd"),
+      shiftStart: document.getElementById("shiftStart"),
+      shiftEnd: document.getElementById("shiftEnd"),
+      scheduleSummary: document.getElementById("scheduleSummary"),
       addSegmentBtn: document.getElementById("addSegmentBtn"),
-      sortSegmentsBtn: document.getElementById("sortSegmentsBtn"),
       segmentList: document.getElementById("segmentList"),
       activeQueueName: document.getElementById("activeQueueName"),
       trackerStartedAt: document.getElementById("trackerStartedAt"),
@@ -734,6 +778,13 @@ dialog::backdrop {
         if (!raw) return structuredClone(defaultState);
         const parsed = JSON.parse(raw);
         const migrated = { ...structuredClone(defaultState), ...parsed };
+        if (!parsed.shiftStart && migrated.segments.length) {
+          migrated.shiftStart = migrated.segments.reduce((earliest, segment) => segment.start < earliest ? segment.start : earliest, migrated.segments[0].start);
+        }
+        if (!parsed.shiftEnd && migrated.segments.length) {
+          migrated.shiftEnd = migrated.segments.reduce((latest, segment) => segment.end && segment.end > latest ? segment.end : latest, "17:00");
+        }
+        migrated.segments = migrated.segments.map(({ end, ...segment }) => segment);
         delete migrated.timerStartedAt;
         delete migrated.selectedSegmentId;
         delete migrated.timerSegmentId;
@@ -807,10 +858,27 @@ dialog::backdrop {
       return Number(queue?.rate || 0) > 0;
     }
 
-    function getSegmentBounds(segment) {
+    function getSegmentBounds(segment, segments = state.segments, shiftEnd = state.shiftEnd) {
       const start = minutesFromTime(segment.start);
-      const end = minutesFromTime(segment.end);
+      const sorted = getSortedSegments(segments);
+      const index = sorted.findIndex(item => item.id === segment.id);
+      const next = sorted[index + 1];
+      const end = next ? minutesFromTime(next.start) : minutesFromTime(shiftEnd);
       return { start, end };
+    }
+
+    function getSortedSegments(segments = state.segments) {
+      return segments.slice().sort((a, b) => minutesFromTime(a.start) - minutesFromTime(b.start));
+    }
+
+    function getSegmentEnd(segment) {
+      const { end } = getSegmentBounds(segment);
+      return timeFromMinutes(end);
+    }
+
+    function timeFromMinutes(total) {
+      const safe = Math.max(0, Math.min(1439, Math.round(total)));
+      return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
     }
 
     function getCurrentSegment() {
@@ -912,11 +980,6 @@ dialog::backdrop {
     }
 
     function renderQueueOptions() {
-      const options = state.queues
-        .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)} - ${queue.rate} apps/hr</option>`)
-        .join("");
-      els.segmentQueue.innerHTML = options;
-
       const productiveQueues = state.queues.filter(queue => isProductiveQueue(queue));
       els.completionQueue.innerHTML = productiveQueues
         .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)}</option>`)
@@ -949,26 +1012,28 @@ dialog::backdrop {
 
     function renderSegments() {
       const currentSegment = getCurrentSegment();
+      const sorted = getSortedSegments();
+      els.shiftStart.value = state.shiftStart;
+      els.shiftEnd.value = state.shiftEnd;
+      const shiftMinutes = Math.max(0, minutesFromTime(state.shiftEnd) - minutesFromTime(state.shiftStart));
+      const plannedMinutes = sorted.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0);
+      els.scheduleSummary.innerHTML = `<strong>${formatHoursMinutes(shiftMinutes / 60)} shift</strong> · ${sorted.length} ${sorted.length === 1 ? "activity" : "activities"} · ${formatHoursMinutes(plannedMinutes / 60)} scheduled`;
 
-      els.segmentList.innerHTML = state.segments.map(segment => {
+      els.segmentList.innerHTML = sorted.length ? sorted.map((segment, index) => {
         const queue = getQueue(segment.queueId);
-        const expected = getSegmentExpectedApps(segment);
         const isActive = currentSegment && currentSegment.id === segment.id;
+        const queueOptions = state.queues.map(option => `<option value="${option.id}" ${option.id === segment.queueId ? "selected" : ""}>${escapeHtml(option.name)} · ${option.rate} apps/hr</option>`).join("");
         return `
-          <article class="segment-card ${isActive ? "active" : ""}" style="--queue-color: ${queue?.color || "#14b8a6"}">
-            <div class="segment-title">
-              <span>${escapeHtml(queue?.name || "Missing queue")}</span>
-              <span class="pill ${isActive ? "good" : ""}">${isActive ? "Active" : `${expected.toFixed(1)} apps`}</span>
-            </div>
-            <div class="segment-meta">${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr</div>
-            <div class="row mt-10">
-              <button class="btn small" data-select-segment="${segment.id}">Track Queue</button>
-              <button class="btn small" data-edit-segment="${segment.id}">Edit</button>
-              <button class="btn small danger" data-delete-segment="${segment.id}">Delete</button>
-            </div>
+          <article class="schedule-row ${isActive ? "active" : ""}" style="--queue-color: ${queue?.color || "#14b8a6"}">
+            <span class="schedule-index">${index + 1}</span>
+            <select aria-label="Queue for activity ${index + 1}" data-segment-queue="${segment.id}">${queueOptions}</select>
+            <input aria-label="Start time for activity ${index + 1}" data-segment-start="${segment.id}" type="time" value="${segment.start}">
+            <span class="schedule-end">${getSegmentEnd(segment)}</span>
+            <span class="schedule-duration">${formatHoursMinutes(getSegmentMinutes(segment) / 60)}</span>
+            <button class="btn small danger" type="button" data-delete-segment="${segment.id}" aria-label="Delete activity ${index + 1}">Remove</button>
           </article>
         `;
-      }).join("");
+      }).join("") : `<div class="schedule-empty subtle">No activities yet. Add the first one and its start time will default to shift start.</div>`;
     }
 
     function renderCompletionHistory() {
@@ -1018,14 +1083,14 @@ dialog::backdrop {
         return;
       }
 
-      const first = Math.min(...state.segments.map(segment => minutesFromTime(segment.start)));
-      const last = Math.max(...state.segments.map(segment => minutesFromTime(segment.end)));
+      const first = minutesFromTime(state.shiftStart);
+      const last = minutesFromTime(state.shiftEnd);
       const total = Math.max(1, last - first);
 
       els.dayTimeline.innerHTML = state.segments.map(segment => {
         const queue = getQueue(segment.queueId);
         const width = (getSegmentMinutes(segment) / total) * 100;
-        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${segment.end}`;
+        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)}`;
         return `<div class="timeline-block" title="${escapeHtml(title)}" style="width: ${width}%; --queue-color: ${queue?.color || "#14b8a6"};"></div>`;
       }).join("");
     }
@@ -1075,7 +1140,7 @@ dialog::backdrop {
       els.liveTrackerDetails.innerHTML = `
         <strong>${escapeHtml(activeQueue.name)}</strong> is being worked now.
         <span class="pill ${adherenceClass}" style="margin-left: 6px;">${plannedQueue?.id === activeQueue.id ? "On plan" : "Off plan"}</span><br>
-        Tracking started ${trackingStarted}. Planned right now: ${escapeHtml(plannedQueue?.name || "No productive queue")}${plannedSegment ? ` (${plannedSegment.start}-${plannedSegment.end})` : ""}.<br>
+        Tracking started ${trackingStarted}. Planned right now: ${escapeHtml(plannedQueue?.name || "No productive queue")}${plannedSegment ? ` (${plannedSegment.start}-${getSegmentEnd(plannedSegment)})` : ""}.<br>
         Queue changes and app completions are recorded with timestamps for export.
         ${switchHtml}
       `;
@@ -1093,7 +1158,7 @@ dialog::backdrop {
       const completedInSegment = state.completions.filter(app => app.segmentId === segment.id).length;
       els.currentSegmentDetails.innerHTML = `
         <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
-        ${segment.start} to ${segment.end} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
+        ${segment.start} to ${getSegmentEnd(segment)} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
         ${completedInSegment} completed while this segment was active.
       `;
     }
@@ -1150,17 +1215,17 @@ dialog::backdrop {
     }
 
     function addSegment() {
-      const queueId = els.segmentQueue.value;
-      const start = els.segmentStart.value;
-      const end = els.segmentEnd.value;
-
-      if (!queueId || !start || !end) return alert("Choose a queue, start time, and end time.");
-      if (minutesFromTime(end) <= minutesFromTime(start)) return alert("End time must be after start time. Time remains annoyingly linear.");
-
+      const queueId = state.queues[0]?.id;
+      if (!queueId) return alert("Add a queue before building a schedule.");
+      const sorted = getSortedSegments();
+      const lastStart = sorted.length ? minutesFromTime(sorted.at(-1).start) : minutesFromTime(state.shiftStart) - 30;
+      const nextStart = Math.max(minutesFromTime(state.shiftStart), lastStart + 30);
+      if (nextStart >= minutesFromTime(state.shiftEnd)) return alert("There is no room for another activity before shift end. Move an existing start time earlier or extend the shift.");
+      const start = timeFromMinutes(nextStart);
       const queue = getQueue(queueId);
-      state.segments.push({ id: crypto.randomUUID(), queueId, start, end });
+      state.segments.push({ id: crypto.randomUUID(), queueId, start });
       sortSegments(false);
-      logActivity("plan", `Added ${queue?.name || "queue"} segment from ${start} to ${end}.`);
+      logActivity("plan", `Added ${queue?.name || "queue"} activity at ${start}.`);
       renderAll();
     }
 
@@ -1213,7 +1278,7 @@ dialog::backdrop {
           entry.at,
           entry.at,
           planned?.name || "",
-          plannedSegment ? `${plannedSegment.start}-${plannedSegment.end}` : ""
+          plannedSegment ? `${plannedSegment.start}-${getSegmentEnd(plannedSegment)}` : ""
         ].map(value => `"${String(value).replaceAll('"', '""')}"`).join(",");
         lines.push(row);
       }
@@ -1230,7 +1295,7 @@ dialog::backdrop {
           app.at,
           app.activeQueueStartedAt || "",
           plannedQueue?.name || "",
-          segment ? `${segment.start}-${segment.end}` : ""
+          segment ? `${segment.start}-${getSegmentEnd(segment)}` : ""
         ].map(value => `"${String(value).replaceAll('"', '""')}"`).join(",");
         lines.push(row);
       }
@@ -1250,6 +1315,8 @@ dialog::backdrop {
         at: nowIso(),
         queues: structuredClone(state.queues),
         segments: structuredClone(state.segments),
+        shiftStart: state.shiftStart,
+        shiftEnd: state.shiftEnd,
         expectedFullDay: getExpectedFullDay()
       };
       logActivity("snapshot", "Saved current plan as start-of-day snapshot.");
@@ -1266,14 +1333,14 @@ dialog::backdrop {
       const startSegmentsHtml = state.startingSnapshot?.segments?.length
         ? state.startingSnapshot.segments.map(segment => {
           const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
-          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${segment.end}</span><span>${getSnapshotSegmentExpected(segment).toFixed(1)} apps</span></div>`;
+          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${getSnapshotSegmentEnd(segment)}</span><span>${getSnapshotSegmentExpected(segment).toFixed(1)} apps</span></div>`;
         }).join("")
         : `<p class="subtle">No start snapshot saved.</p>`;
 
       const currentSegmentsHtml = state.segments.length
         ? state.segments.map(segment => {
           const queue = getQueue(segment.queueId);
-          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${segment.end}</span><span>${getSegmentExpectedApps(segment).toFixed(1)} apps</span></div>`;
+          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${getSegmentEnd(segment)}</span><span>${getSegmentExpectedApps(segment).toFixed(1)} apps</span></div>`;
         }).join("")
         : `<p class="subtle">No current plan segments.</p>`;
 
@@ -1304,7 +1371,12 @@ dialog::backdrop {
     function getSnapshotSegmentExpected(segment) {
       const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
       if (!queue) return 0;
-      return (getSegmentMinutes(segment) / 60) * Number(queue.rate || 0);
+      const { start, end } = getSegmentBounds(segment, state.startingSnapshot.segments, state.startingSnapshot.shiftEnd || state.shiftEnd);
+      return (Math.max(0, end - start) / 60) * Number(queue.rate || 0);
+    }
+
+    function getSnapshotSegmentEnd(segment) {
+      return timeFromMinutes(getSegmentBounds(segment, state.startingSnapshot.segments, state.startingSnapshot.shiftEnd || state.shiftEnd).end);
     }
 
     function resetDay() {
@@ -1319,7 +1391,9 @@ dialog::backdrop {
         completions: structuredClone(state.completions),
         activityLog: structuredClone(state.activityLog),
         queueSwitchLog: structuredClone(getQueueSwitchRows()),
-        startingSnapshot: structuredClone(state.startingSnapshot)
+        startingSnapshot: structuredClone(state.startingSnapshot),
+        shiftStart: state.shiftStart,
+        shiftEnd: state.shiftEnd
       });
       state.segments = [];
       state.completions = [];
@@ -1348,7 +1422,6 @@ dialog::backdrop {
       const editQueueId = event.target.dataset.editQueue;
       const deleteQueueId = event.target.dataset.deleteQueue;
       const selectSegmentId = event.target.dataset.selectSegment;
-      const editSegmentId = event.target.dataset.editSegment;
       const deleteSegmentId = event.target.dataset.deleteSegment;
       const deleteCompletionId = event.target.dataset.deleteCompletion;
 
@@ -1385,21 +1458,6 @@ dialog::backdrop {
         renderAll();
       }
 
-      if (editSegmentId) {
-        const segment = state.segments.find(item => item.id === editSegmentId);
-        if (!segment) return;
-        const start = prompt("Start time HH:MM", segment.start);
-        const end = prompt("End time HH:MM", segment.end);
-        if (!start || !end) return;
-        if (minutesFromTime(end) <= minutesFromTime(start)) return alert("End time must be after start time.");
-        segment.start = start;
-        segment.end = end;
-        sortSegments(false);
-        logActivity("plan", `Updated segment to ${start}-${end}.`);
-        renderAll();
-      }
-
-
       if (deleteCompletionId) {
         const completion = state.completions.find(item => item.id === deleteCompletionId);
         if (!completion) return;
@@ -1420,7 +1478,47 @@ dialog::backdrop {
     els.archiveBtn.addEventListener("click", () => els.archiveDialog.showModal());
     els.addQueueBtn.addEventListener("click", addQueue);
     els.addSegmentBtn.addEventListener("click", addSegment);
-    els.sortSegmentsBtn.addEventListener("click", () => { sortSegments(); renderAll(); });
+    els.segmentList.addEventListener("change", event => {
+      const segmentId = event.target.dataset.segmentQueue || event.target.dataset.segmentStart;
+      const segment = state.segments.find(item => item.id === segmentId);
+      if (!segment) return;
+      if (event.target.dataset.segmentQueue) {
+        segment.queueId = event.target.value;
+        logActivity("plan", `Changed the ${segment.start} activity to ${getQueue(segment.queueId)?.name || "queue"}.`);
+      } else {
+        const start = event.target.value;
+        if (!start || minutesFromTime(start) < minutesFromTime(state.shiftStart) || minutesFromTime(start) >= minutesFromTime(state.shiftEnd)) {
+          alert("Activity starts must fall within the shift.");
+          return renderAll();
+        }
+        if (state.segments.some(item => item.id !== segment.id && item.start === start)) {
+          alert("Two activities cannot start at the same time.");
+          return renderAll();
+        }
+        segment.start = start;
+        sortSegments(false);
+        logActivity("plan", `Moved an activity to ${start}.`);
+      }
+      renderAll();
+    });
+    function updateShift() {
+      const start = els.shiftStart.value;
+      const end = els.shiftEnd.value;
+      if (!start || !end || minutesFromTime(end) <= minutesFromTime(start)) {
+        alert("Shift end must be after shift start.");
+        return renderAll();
+      }
+      if (state.segments.some(segment => minutesFromTime(segment.start) < minutesFromTime(start) || minutesFromTime(segment.start) >= minutesFromTime(end))) {
+        alert("Move all activity starts inside the new shift times first.");
+        return renderAll();
+      }
+      state.shiftStart = start;
+      state.shiftEnd = end;
+      logActivity("plan", `Updated shift to ${start}-${end}.`);
+      renderAll();
+    }
+    els.shiftStart.addEventListener("change", updateShift);
+    els.shiftEnd.addEventListener("change", updateShift);
     els.completeAppBtn.addEventListener("click", completeApp);
     els.completionQueue.addEventListener("change", () => {
       setActiveQueue(els.completionQueue.value, "manual");
