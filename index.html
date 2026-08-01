@@ -788,6 +788,7 @@ dialog::backdrop {
   </dialog>  <script>
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
+    const OFF_QUEUE_NAME = "Off queue";
     const TEAM_BRIEFING_NAME = "Team briefing";
     const TEAM_BRIEFING_ID = crypto.randomUUID();
     const BASE_TITLE = "Queue Performance Dashboard";
@@ -798,6 +799,7 @@ dialog::backdrop {
     const defaultState = {
       queues: [
         { id: crypto.randomUUID(), name: NON_PRODUCTIVE_NAME, rate: 0, color: "#71717a", locked: true },
+        { id: crypto.randomUUID(), name: OFF_QUEUE_NAME, rate: 0, color: "#f59e0b", locked: true },
         { id: TEAM_BRIEFING_ID, name: TEAM_BRIEFING_NAME, rate: 0, color: "#0ea5e9", locked: true },
         { id: crypto.randomUUID(), name: "Startup", rate: 2.29, color: "#ba3aff" },
         { id: crypto.randomUUID(), name: "Established", rate: 2.29, color: "#2df24d" },
@@ -822,6 +824,7 @@ dialog::backdrop {
 
     let state = loadState();
     ensureNonProductiveQueue();
+    ensureOffQueue();
     ensureTeamBriefingQueue();
 
     const els = {
@@ -921,6 +924,19 @@ dialog::backdrop {
         color: "#71717a",
         locked: true
       });
+    }
+
+    function ensureOffQueue() {
+      const existing = state.queues.find(queue => queue.name.toLowerCase() === OFF_QUEUE_NAME.toLowerCase());
+      if (existing) {
+        existing.rate = 0;
+        existing.locked = true;
+        existing.color = existing.color || "#f59e0b";
+        return existing;
+      }
+      const queue = { id: crypto.randomUUID(), name: OFF_QUEUE_NAME, rate: 0, color: "#f59e0b", locked: true };
+      state.queues.push(queue);
+      return queue;
     }
 
     function ensureTeamBriefingQueue() {
@@ -1042,9 +1058,9 @@ dialog::backdrop {
 
     function getActiveQueue() {
       const manualQueue = state.activeQueueId ? getQueue(state.activeQueueId) : null;
-      if (isProductiveQueue(manualQueue)) return manualQueue;
-      const defaultQueueId = getDefaultActiveQueueId();
-      return defaultQueueId ? getQueue(defaultQueueId) : null;
+      if (manualQueue) return manualQueue;
+      const plannedSegment = getPlannedSegmentAtNow();
+      return plannedSegment ? getQueue(plannedSegment.queueId) || null : null;
     }
 
     function getQueueSwitchRows() {
@@ -1053,7 +1069,7 @@ dialog::backdrop {
 
     function setActiveQueue(queueId, source = "manual") {
       const queue = getQueue(queueId);
-      if (!queue || !isProductiveQueue(queue)) return;
+      if (!queue) return;
       if (state.activeQueueId === queueId) return;
 
       const plannedSegment = getPlannedSegmentAtNow();
@@ -1067,7 +1083,7 @@ dialog::backdrop {
       state.timerStartedAt = changedAt;
       const adherenceText = plannedQueue
         ? (plannedQueue.id === queueId ? "matches the original plan" : `planned ${plannedQueue.name}`)
-        : "outside planned productive time";
+        : "outside planned time";
 
       state.queueSwitchLog.unshift({
         id: crypto.randomUUID(),
@@ -1145,12 +1161,18 @@ dialog::backdrop {
 
     function renderQueueOptions() {
       const productiveQueues = state.queues.filter(queue => isProductiveQueue(queue));
-      els.completionQueue.innerHTML = productiveQueues
+      const nonProductiveQueues = state.queues.filter(queue => !isProductiveQueue(queue));
+      const renderOptions = queues => queues
         .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)}</option>`)
         .join("");
 
+      els.completionQueue.innerHTML = `
+        <optgroup label="Productive queues">${renderOptions(productiveQueues)}</optgroup>
+        <optgroup label="Non-productive / off queue">${renderOptions(nonProductiveQueues)}</optgroup>
+      `;
+
       const activeQueue = getActiveQueue();
-      const fallbackQueue = productiveQueues[0];
+      const fallbackQueue = productiveQueues[0] || nonProductiveQueues[0];
       if (activeQueue) {
         els.completionQueue.value = activeQueue.id;
       } else if (fallbackQueue) {
@@ -1347,15 +1369,15 @@ dialog::backdrop {
 
     function renderTimer() {
       const activeQueue = getActiveQueue();
-      if (!activeQueue) {
-        els.timerDisplay.textContent = "--:--";
-        els.timerCaption.textContent = "Remaining";
+      if (!activeQueue || !isProductiveQueue(activeQueue)) {
+        els.timerDisplay.textContent = activeQueue ? activeQueue.name : "--:--";
+        els.timerCaption.textContent = activeQueue ? "Non-productive activity" : "Remaining";
         els.timerEtc.textContent = "--:--";
         els.timerTarget.textContent = "--:--";
         els.timerDisplay.classList.remove("overdue");
         els.timerProgress.style.width = "0%";
-        els.trackerStartedAt.textContent = "--:--";
-        document.title = BASE_TITLE;
+        els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "--:--";
+        document.title = activeQueue ? `${activeQueue.name} - ${BASE_TITLE}` : BASE_TITLE;
         return;
       }
 
@@ -1651,7 +1673,7 @@ dialog::backdrop {
 
       if (deleteQueueId) {
         const queue = getQueue(deleteQueueId);
-        if (queue?.locked) return alert("The default Non-productive queue cannot be deleted.");
+        if (queue?.locked) return alert("Built-in activities cannot be deleted.");
         const inUse = state.segments.some(segment => segment.queueId === deleteQueueId);
         if (inUse) return alert("This queue is used in today’s plan. Delete or edit those segments first.");
         state.queues = state.queues.filter(queue => queue.id !== deleteQueueId);
