@@ -594,6 +594,7 @@ dialog::backdrop {
       <div class="tracker-label">Current Queue Tracker</div>
       <div class="active-queue" id="activeQueueName">No active queue</div>
       <div class="timer-display" id="timerDisplay">--:--</div>
+      <div class="tracker-meta" id="timerEtc">ETC --:--</div>
       <div class="tracker-meta" id="trackerStartedAt">Select a queue to start tracking actual work.</div>
       <div class="tracker-status" id="trackerStatus">Queue selections and completed apps are saved for CSV export.</div>
       <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
@@ -627,7 +628,7 @@ dialog::backdrop {
     <section class="stack">
       <div class="overview-heading">
         <h2>Day Overview</h2>
-        <span class="pill expected-total" id="expectedAppsTotal">0 apps expected</span>
+        <span class="pill expected-total" id="expectedAppsTotal" aria-label="0 apps expected">0</span>
       </div>
       <div class="day-timeline" id="dayTimeline"></div>
       <div class="stats-grid four">
@@ -820,6 +821,7 @@ dialog::backdrop {
       trackerStartedAt: document.getElementById("trackerStartedAt"),
       trackerStatus: document.getElementById("trackerStatus"),
       timerDisplay: document.getElementById("timerDisplay"),
+      timerEtc: document.getElementById("timerEtc"),
       timerProgress: document.getElementById("timerProgress"),
       completionQueue: document.getElementById("completionQueue"),
       completionUid: document.getElementById("completionUid"),
@@ -1184,7 +1186,8 @@ dialog::backdrop {
 
     function renderDayTimeline() {
       const roundedExpectedTotal = state.segments.reduce((sum, segment) => sum + getSegmentExpectedWholeApps(segment), 0);
-      els.expectedAppsTotal.textContent = `${roundedExpectedTotal} ${roundedExpectedTotal === 1 ? "app" : "apps"} expected`;
+      els.expectedAppsTotal.textContent = roundedExpectedTotal;
+      els.expectedAppsTotal.setAttribute("aria-label", `${roundedExpectedTotal} ${roundedExpectedTotal === 1 ? "app" : "apps"} expected`);
 
       if (!state.segments.length) {
         els.dayTimeline.innerHTML = `<div class="timeline-block" style="width: 100%; background: transparent;"></div>`;
@@ -1203,9 +1206,9 @@ dialog::backdrop {
         const excessMinutes = Math.max(0, segmentMinutes - productiveMinutes);
         const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No complete apps fit";
         const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${expectedText}`;
-        const productiveBlock = productiveMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(productiveMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${expected > 0 ? `<span class="timeline-label">${expected} ${expected === 1 ? "app" : "apps"}</span>` : ""}</div>` : "";
+        const productiveBlock = productiveMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(productiveMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${expected > 0 ? `<span class="timeline-label">${expected}</span>` : ""}</div>` : "";
         const excessLabel = `${Math.round(excessMinutes)}m excess`;
-        const excessBlock = excessMinutes > .01 ? `<div class="timeline-block excess" title="${escapeHtml(`${queue?.name || "Queue"}: ${excessLabel}`)}" aria-label="${escapeHtml(excessLabel)}" style="width: ${(excessMinutes / total) * 100}%;"><span class="timeline-label">${excessLabel}</span></div>` : "";
+        const excessBlock = excessMinutes > .01 ? `<div class="timeline-block excess" title="${escapeHtml(`${queue?.name || "Queue"}: ${excessLabel}`)}" aria-label="${escapeHtml(excessLabel)}" style="width: ${(excessMinutes / total) * 100}%;"><span class="timeline-label">${Math.round(excessMinutes)}</span></div>` : "";
         return productiveBlock + excessBlock;
       }).join("");
     }
@@ -1283,6 +1286,7 @@ dialog::backdrop {
       if (!activeQueue) {
         els.activeQueueName.textContent = "No active queue";
         els.timerDisplay.textContent = "--:--";
+        els.timerEtc.textContent = "ETC --:--";
         els.timerDisplay.classList.remove("overdue");
         els.timerProgress.style.width = "0%";
         els.trackerStartedAt.textContent = "Select a queue to start tracking actual work.";
@@ -1306,7 +1310,9 @@ dialog::backdrop {
       const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
       const remaining = secondsPerApp - elapsed;
       const timerText = formatDuration(remaining);
+      const estimatedCompletion = new Date(new Date(state.timerStartedAt).getTime() + secondsPerApp * 1000);
       els.timerDisplay.textContent = timerText;
+      els.timerEtc.textContent = `ETC ${formatClock(estimatedCompletion.toISOString())}`;
       els.timerDisplay.classList.toggle("overdue", remaining < 0);
       els.timerProgress.style.width = `${Math.min(100, (elapsed / secondsPerApp) * 100)}%`;
 
