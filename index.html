@@ -218,6 +218,18 @@ input:focus, select:focus, textarea:focus {
   border: 1px solid rgba(94, 234, 212, 0.24);
 }
 
+.timer-display {
+  margin: 8px 0 2px;
+  font-size: clamp(2.8rem, 7vw, 5.5rem);
+  font-weight: 900;
+  line-height: .95;
+  letter-spacing: -.07em;
+  font-variant-numeric: tabular-nums;
+}
+.timer-display.overdue { color: var(--danger); }
+.timer-progress { height: 7px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
+.timer-progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .3s linear; }
+
 .tracker-label {
   color: var(--muted);
   text-transform: uppercase;
@@ -455,6 +467,8 @@ input:focus, select:focus, textarea:focus {
   text-shadow: 0 1px 3px rgba(0,0,0,.8);
   white-space: nowrap;
 }
+.timeline-block.excess { background: #52525b; }
+.timeline-block.excess .timeline-label { color: #e4e4e7; font-weight: 700; }
 
 .overview-heading {
   display: flex;
@@ -569,6 +583,7 @@ dialog::backdrop {
           <button class="btn" id="snapshotBtn">Save Current Plan</button>
           <button class="btn warning" id="endDayBtn">End Day Review</button>
           <button class="btn" id="completedAppsBtn">Completed Apps</button>
+          <button class="btn" id="detailsBtn">Plan Details</button>
           <button class="btn" id="exportCsvBtn">Export CSV</button>
           <button class="btn danger" id="resetBtn">Reset Day</button>
         </div>
@@ -578,8 +593,10 @@ dialog::backdrop {
     <div class="tracker-card">
       <div class="tracker-label">Current Queue Tracker</div>
       <div class="active-queue" id="activeQueueName">No active queue</div>
+      <div class="timer-display" id="timerDisplay">--:--</div>
       <div class="tracker-meta" id="trackerStartedAt">Select a queue to start tracking actual work.</div>
       <div class="tracker-status" id="trackerStatus">Queue selections and completed apps are saved for CSV export.</div>
+      <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
     </div>
 
     <div class="row between">
@@ -627,30 +644,33 @@ dialog::backdrop {
           <div class="label">Apps completed</div>
         </article>
         <article class="stat">
-          <div class="value" id="queueSwitchCount">0</div>
-          <div class="label">Queue changes tracked</div>
+          <div class="value" id="excessTime">0h 0m</div>
+          <div class="label">Excess planned time</div>
         </article>
       </div>
     </section>
 
-    <section class="panel-soft stack">
-      <h2>Live Queue Tracker</h2>
-      <div id="liveTrackerDetails" class="subtle">Queue changes will appear here.</div>
-    </section>
-
-    <section class="panel-soft stack">
-      <h2>Current Plan Segment</h2>
-      <div id="currentSegmentDetails" class="subtle">No matching segment yet.</div>
-    </section>
-
-    <section>
-      <h2>Queue Breakdown</h2>
-      <div class="table-like" id="breakdownList"></div>
-    </section>
   </section>
 </section>
 
-  </main>  <dialog id="settingsDialog">
+  </main>  <dialog id="detailsDialog">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header"><h2>Plan Details</h2><button class="btn small" value="close">Close</button></div>
+      <section class="panel-soft stack"><h3>Live Queue Tracker</h3><div id="liveTrackerDetails" class="subtle">Queue changes will appear here.</div></section>
+      <section class="panel-soft stack"><h3>Current Plan Segment</h3><div id="currentSegmentDetails" class="subtle">No matching segment yet.</div></section>
+      <section><h3>Queue Breakdown</h3><div class="table-like" id="breakdownList"></div></section>
+    </form>
+  </dialog>  <dialog id="newDayDialog">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header"><h2>A new day has started</h2></div>
+      <p class="subtle">Export yesterday’s tracking history and start a fresh schedule, or keep the current day open for now.</p>
+      <div class="row">
+        <button class="btn primary" id="newDayExportBtn" type="button">Export CSV &amp; reset</button>
+        <button class="btn" id="newDayResetBtn" type="button">Reset without export</button>
+        <button class="btn" id="newDaySkipBtn" type="button">Skip for now</button>
+      </div>
+    </form>
+  </dialog>  <dialog id="settingsDialog">
     <form method="dialog" class="modal-inner">
       <div class="modal-header">
         <h2>Queue Settings</h2>
@@ -731,11 +751,14 @@ dialog::backdrop {
   </dialog>  <script>
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
+    const TEAM_BRIEFING_NAME = "Team briefing";
+    const TEAM_BRIEFING_ID = crypto.randomUUID();
     const BASE_TITLE = "Queue Performance Dashboard";
 
     const defaultState = {
       queues: [
         { id: crypto.randomUUID(), name: NON_PRODUCTIVE_NAME, rate: 0, color: "#71717a", locked: true },
+        { id: TEAM_BRIEFING_ID, name: TEAM_BRIEFING_NAME, rate: 0, color: "#0ea5e9", locked: true },
         { id: crypto.randomUUID(), name: "Startup", rate: 2.29, color: "#ba3aff" },
         { id: crypto.randomUUID(), name: "Established", rate: 2.29, color: "#2df24d" },
         { id: crypto.randomUUID(), name: "Resubmissions", rate: 2.63, color: "#fb2832" },
@@ -744,7 +767,7 @@ dialog::backdrop {
       ],
       shiftStart: "09:00",
       shiftEnd: "17:00",
-      segments: [],
+      segments: [{ id: crypto.randomUUID(), queueId: TEAM_BRIEFING_ID, start: "11:00" }],
       completions: [],
       archive: [],
       activityLog: [],
@@ -752,10 +775,14 @@ dialog::backdrop {
       activeQueueId: null,
       activeQueueStartedAt: null,
       queueSwitchLog: [],
+      timerStartedAt: null,
+      timerQueueId: null,
+      dayDate: localDateKey(),
     };
 
     let state = loadState();
     ensureNonProductiveQueue();
+    ensureTeamBriefingQueue();
 
     const els = {
       menuBtn: document.getElementById("menuBtn"),
@@ -773,6 +800,12 @@ dialog::backdrop {
       reviewDialog: document.getElementById("reviewDialog"),
       completionDialog: document.getElementById("completionDialog"),
       completedAppsBtn: document.getElementById("completedAppsBtn"),
+      detailsBtn: document.getElementById("detailsBtn"),
+      detailsDialog: document.getElementById("detailsDialog"),
+      newDayDialog: document.getElementById("newDayDialog"),
+      newDayExportBtn: document.getElementById("newDayExportBtn"),
+      newDayResetBtn: document.getElementById("newDayResetBtn"),
+      newDaySkipBtn: document.getElementById("newDaySkipBtn"),
       queueName: document.getElementById("queueName"),
       queueRate: document.getElementById("queueRate"),
       queueColor: document.getElementById("queueColor"),
@@ -786,12 +819,14 @@ dialog::backdrop {
       activeQueueName: document.getElementById("activeQueueName"),
       trackerStartedAt: document.getElementById("trackerStartedAt"),
       trackerStatus: document.getElementById("trackerStatus"),
+      timerDisplay: document.getElementById("timerDisplay"),
+      timerProgress: document.getElementById("timerProgress"),
       completionQueue: document.getElementById("completionQueue"),
       completionUid: document.getElementById("completionUid"),
       completionOutcome: document.getElementById("completionOutcome"),
       completeAppBtn: document.getElementById("completeAppBtn"),
       completedCount: document.getElementById("completedCount"),
-      queueSwitchCount: document.getElementById("queueSwitchCount"),
+      excessTime: document.getElementById("excessTime"),
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       liveTrackerDetails: document.getElementById("liveTrackerDetails"),
       breakdownList: document.getElementById("breakdownList"),
@@ -817,9 +852,7 @@ dialog::backdrop {
           migrated.shiftEnd = migrated.segments.reduce((latest, segment) => segment.end && segment.end > latest ? segment.end : latest, "17:00");
         }
         migrated.segments = migrated.segments.map(({ end, ...segment }) => segment);
-        delete migrated.timerStartedAt;
         delete migrated.selectedSegmentId;
-        delete migrated.timerSegmentId;
         delete migrated.timeBankSeconds;
         return migrated;
       } catch {
@@ -849,6 +882,26 @@ dialog::backdrop {
       });
     }
 
+    function ensureTeamBriefingQueue() {
+      const existing = state.queues.find(queue => queue.name.toLowerCase() === TEAM_BRIEFING_NAME.toLowerCase());
+      if (existing) {
+        existing.rate = 0;
+        existing.locked = true;
+        existing.color = existing.color || "#0ea5e9";
+        return existing;
+      }
+      const queue = { id: crypto.randomUUID(), name: TEAM_BRIEFING_NAME, rate: 0, color: "#0ea5e9", locked: true };
+      state.queues.push(queue);
+      return queue;
+    }
+
+    function localDateKey(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
     function logActivity(type, text) {
       state.activityLog.unshift({ id: crypto.randomUUID(), type, text, at: nowIso() });
       state.activityLog = state.activityLog.slice(0, 80);
@@ -876,6 +929,13 @@ dialog::backdrop {
       const hours = Math.floor(totalMinutes / 60);
       const minutes = totalMinutes % 60;
       return `${hours}h ${minutes}m`;
+    }
+
+    function formatDuration(secondsValue) {
+      const seconds = Math.ceil(Math.abs(secondsValue));
+      const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
+      const remainder = String(seconds % 60).padStart(2, "0");
+      return `${secondsValue < 0 ? "-" : ""}${minutes}:${remainder}`;
     }
 
     function formatClock(iso) {
@@ -962,6 +1022,8 @@ dialog::backdrop {
 
       state.activeQueueId = queueId;
       state.activeQueueStartedAt = changedAt;
+      state.timerQueueId = queueId;
+      state.timerStartedAt = changedAt;
       const adherenceText = plannedQueue
         ? (plannedQueue.id === queueId ? "matches the original plan" : `planned ${plannedQueue.name}`)
         : "outside planned productive time";
@@ -993,11 +1055,15 @@ dialog::backdrop {
       return (minutes / 60) * Number(queue.rate || 0);
     }
 
+    function getSegmentExpectedWholeApps(segment) {
+      return Math.floor(getSegmentExpectedApps(segment));
+    }
+
     function getExpectedFullDay(segments = state.segments, queues = state.queues) {
       return segments.reduce((sum, segment) => {
         const queue = getQueue(segment.queueId, queues);
         if (!queue) return sum;
-        return sum + (getSegmentMinutes(segment) / 60) * Number(queue.rate || 0);
+        return sum + Math.floor((getSegmentMinutes(segment) / 60) * Number(queue.rate || 0));
       }, 0);
     }
 
@@ -1104,13 +1170,20 @@ dialog::backdrop {
 
     function renderStats() {
       els.completedCount.textContent = state.completions.length;
-      els.queueSwitchCount.textContent = getQueueSwitchRows().length;
       els.productiveHours.textContent = formatHoursMinutes(getPlannedHours(true));
       els.nonProductiveHours.textContent = formatHoursMinutes(getPlannedHours(false));
+      const excessMinutes = state.segments.reduce((sum, segment) => {
+        const queue = getQueue(segment.queueId);
+        if (!isProductiveQueue(queue)) return sum;
+        const segmentMinutes = getSegmentMinutes(segment);
+        const wholeApps = Math.floor((segmentMinutes / 60) * Number(queue.rate));
+        return sum + Math.max(0, segmentMinutes - (wholeApps / Number(queue.rate)) * 60);
+      }, 0);
+      els.excessTime.textContent = formatHoursMinutes(excessMinutes / 60);
     }
 
     function renderDayTimeline() {
-      const roundedExpectedTotal = state.segments.reduce((sum, segment) => sum + Math.ceil(getSegmentExpectedApps(segment)), 0);
+      const roundedExpectedTotal = state.segments.reduce((sum, segment) => sum + getSegmentExpectedWholeApps(segment), 0);
       els.expectedAppsTotal.textContent = `${roundedExpectedTotal} ${roundedExpectedTotal === 1 ? "app" : "apps"} expected`;
 
       if (!state.segments.length) {
@@ -1122,20 +1195,25 @@ dialog::backdrop {
       const last = minutesFromTime(state.shiftEnd);
       const total = Math.max(1, last - first);
 
-      els.dayTimeline.innerHTML = state.segments.map(segment => {
+      els.dayTimeline.innerHTML = getSortedSegments().map(segment => {
         const queue = getQueue(segment.queueId);
-        const width = (getSegmentMinutes(segment) / total) * 100;
-        const expected = Math.ceil(getSegmentExpectedApps(segment));
-        const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No apps expected";
+        const segmentMinutes = getSegmentMinutes(segment);
+        const expected = getSegmentExpectedWholeApps(segment);
+        const productiveMinutes = isProductiveQueue(queue) ? Math.min(segmentMinutes, (expected / Number(queue.rate)) * 60) : segmentMinutes;
+        const excessMinutes = Math.max(0, segmentMinutes - productiveMinutes);
+        const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No complete apps fit";
         const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${expectedText}`;
-        return `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${width}%; --queue-color: ${queue?.color || "#14b8a6"};">${expected > 0 ? `<span class="timeline-label">${expected} ${expected === 1 ? "app" : "apps"}</span>` : ""}</div>`;
+        const productiveBlock = productiveMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(productiveMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${expected > 0 ? `<span class="timeline-label">${expected} ${expected === 1 ? "app" : "apps"}</span>` : ""}</div>` : "";
+        const excessLabel = `${Math.round(excessMinutes)}m excess`;
+        const excessBlock = excessMinutes > .01 ? `<div class="timeline-block excess" title="${escapeHtml(`${queue?.name || "Queue"}: ${excessLabel}`)}" aria-label="${escapeHtml(excessLabel)}" style="width: ${(excessMinutes / total) * 100}%;"><span class="timeline-label">${excessLabel}</span></div>` : "";
+        return productiveBlock + excessBlock;
       }).join("");
     }
 
     function renderBreakdown() {
       const byQueue = state.queues.map(queue => {
         const queueSegments = state.segments.filter(segment => segment.queueId === queue.id);
-        const expected = queueSegments.reduce((sum, segment) => sum + getSegmentExpectedApps(segment), 0);
+        const expected = queueSegments.reduce((sum, segment) => sum + getSegmentExpectedWholeApps(segment), 0);
         const plannedHours = queueSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0) / 60;
         const completed = state.completions.filter(app => app.queueId === queue.id).length;
         const switches = getQueueSwitchRows().filter(entry => entry.queueId === queue.id).length;
@@ -1191,11 +1269,11 @@ dialog::backdrop {
       }
 
       const queue = getQueue(segment.queueId);
-      const expectedSegment = getSegmentExpectedApps(segment);
+      const expectedSegment = getSegmentExpectedWholeApps(segment);
       const completedInSegment = state.completions.filter(app => app.segmentId === segment.id).length;
       els.currentSegmentDetails.innerHTML = `
         <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
-        ${segment.start} to ${getSegmentEnd(segment)} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment.toFixed(1)} expected in this segment<br>
+        ${segment.start} to ${getSegmentEnd(segment)} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment} expected in this segment<br>
         ${completedInSegment} completed while this segment was active.
       `;
     }
@@ -1204,6 +1282,9 @@ dialog::backdrop {
       const activeQueue = getActiveQueue();
       if (!activeQueue) {
         els.activeQueueName.textContent = "No active queue";
+        els.timerDisplay.textContent = "--:--";
+        els.timerDisplay.classList.remove("overdue");
+        els.timerProgress.style.width = "0%";
         els.trackerStartedAt.textContent = "Select a queue to start tracking actual work.";
         els.trackerStatus.textContent = "Queue selections and completed apps are saved for CSV export.";
         document.title = BASE_TITLE;
@@ -1216,10 +1297,23 @@ dialog::backdrop {
         ? "Live queue matches the current plan segment."
         : `Live queue is tracking actual work; current plan says ${plannedQueue?.name || "no productive queue"}.`;
 
+      if (state.timerQueueId !== activeQueue.id || !state.timerStartedAt) {
+        state.timerQueueId = activeQueue.id;
+        state.timerStartedAt = nowIso();
+        saveState();
+      }
+      const secondsPerApp = 3600 / Number(activeQueue.rate);
+      const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
+      const remaining = secondsPerApp - elapsed;
+      const timerText = formatDuration(remaining);
+      els.timerDisplay.textContent = timerText;
+      els.timerDisplay.classList.toggle("overdue", remaining < 0);
+      els.timerProgress.style.width = `${Math.min(100, (elapsed / secondsPerApp) * 100)}%`;
+
       els.activeQueueName.textContent = activeQueue.name;
       els.trackerStartedAt.textContent = state.activeQueueStartedAt ? `Tracking since ${formatClock(state.activeQueueStartedAt)}.` : "Tracking from current plan.";
-      els.trackerStatus.textContent = status;
-      document.title = `${activeQueue.name} - ${BASE_TITLE}`;
+      els.trackerStatus.textContent = `${status} Target pace: one app every ${formatDuration(secondsPerApp)}.`;
+      document.title = `${timerText} · ${activeQueue.name} - ${BASE_TITLE}`;
     }
 
     function renderAll() {
@@ -1292,6 +1386,8 @@ dialog::backdrop {
         activeQueueStartedAt: state.activeQueueStartedAt || null
       };
       state.completions.push(completion);
+      state.timerQueueId = queueId;
+      state.timerStartedAt = currentIso;
 
       els.completionUid.value = "";
       if (els.completionOutcome) els.completionOutcome.value = "";
@@ -1377,7 +1473,7 @@ dialog::backdrop {
       const currentSegmentsHtml = state.segments.length
         ? state.segments.map(segment => {
           const queue = getQueue(segment.queueId);
-          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${getSegmentEnd(segment)}</span><span>${getSegmentExpectedApps(segment).toFixed(1)} apps</span></div>`;
+          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${getSegmentEnd(segment)}</span><span>${getSegmentExpectedWholeApps(segment)} apps</span></div>`;
         }).join("")
         : `<p class="subtle">No current plan segments.</p>`;
 
@@ -1409,16 +1505,15 @@ dialog::backdrop {
       const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
       if (!queue) return 0;
       const { start, end } = getSegmentBounds(segment, state.startingSnapshot.segments, state.startingSnapshot.shiftEnd || state.shiftEnd);
-      return (Math.max(0, end - start) / 60) * Number(queue.rate || 0);
+      return Math.floor((Math.max(0, end - start) / 60) * Number(queue.rate || 0));
     }
 
     function getSnapshotSegmentEnd(segment) {
       return timeFromMinutes(getSegmentBounds(segment, state.startingSnapshot.segments, state.startingSnapshot.shiftEnd || state.shiftEnd).end);
     }
 
-    function resetDay() {
-      const confirmed = confirm("Reset today’s segments, completions, logs, and snapshot? Queue settings will be kept.");
-      if (!confirmed) return;
+    function resetDay(skipConfirmation = false, openSchedule = false) {
+      if (!skipConfirmation && !confirm("Reset today’s segments, completions, logs, and snapshot? Queue settings will be kept.")) return;
       state.archive.push({
         id: crypto.randomUUID(),
         archivedAt: nowIso(),
@@ -1432,14 +1527,23 @@ dialog::backdrop {
         shiftStart: state.shiftStart,
         shiftEnd: state.shiftEnd
       });
-      state.segments = [];
+      const briefingQueue = ensureTeamBriefingQueue();
+      state.segments = [{ id: crypto.randomUUID(), queueId: briefingQueue.id, start: "11:00" }];
       state.completions = [];
       state.activityLog = [];
       state.startingSnapshot = null;
       state.activeQueueId = null;
       state.activeQueueStartedAt = null;
       state.queueSwitchLog = [];
+      state.timerStartedAt = null;
+      state.timerQueueId = null;
+      state.dayDate = localDateKey();
       renderAll();
+      if (openSchedule) setTimeout(() => els.planDialog.showModal(), 0);
+    }
+
+    function checkForNewDay() {
+      if (state.dayDate !== localDateKey() && !els.newDayDialog.open) els.newDayDialog.showModal();
     }
 
 
@@ -1564,12 +1668,31 @@ dialog::backdrop {
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
+    els.detailsBtn.addEventListener("click", () => els.detailsDialog.showModal());
     els.exportCsvBtn.addEventListener("click", exportCompletionsCsv);
-    els.resetBtn.addEventListener("click", resetDay);
+    els.resetBtn.addEventListener("click", () => resetDay());
+    els.newDayExportBtn.addEventListener("click", () => {
+      if (state.completions.length || getQueueSwitchRows().length) exportCompletionsCsv();
+      els.newDayDialog.close();
+      resetDay(true, true);
+    });
+    els.newDayResetBtn.addEventListener("click", () => {
+      els.newDayDialog.close();
+      resetDay(true, true);
+    });
+    els.newDaySkipBtn.addEventListener("click", () => {
+      state.dayDate = localDateKey();
+      saveState();
+      els.newDayDialog.close();
+      els.planDialog.showModal();
+    });
 
 
     els.completionUid.value = "";
     if (els.completionOutcome) els.completionOutcome.value = "";
     renderAll();
+    checkForNewDay();
+    setInterval(renderTimer, 1000);
+    setInterval(checkForNewDay, 60000);
   </script></body>
   </html>
