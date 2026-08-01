@@ -88,7 +88,7 @@ button { border: 0; cursor: pointer; color: inherit; }
 
 .grid {
   display: grid;
-  grid-template-columns: 1.1fr 1.9fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
@@ -212,14 +212,14 @@ input:focus, select:focus, textarea:focus {
 
 .tracker-card {
   text-align: center;
-  padding: 28px 20px;
+  padding: 22px 20px 20px;
   border-radius: 24px;
   background: linear-gradient(135deg, rgba(94, 234, 212, 0.12), rgba(20, 184, 166, 0.04)), var(--panel-soft);
   border: 1px solid rgba(94, 234, 212, 0.24);
 }
 
 .timer-display {
-  margin: 8px 0 2px;
+  margin: 5px 0 2px;
   font-size: clamp(2.8rem, 7vw, 5.5rem);
   font-weight: 900;
   line-height: .95;
@@ -236,6 +236,33 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: 0.12em;
   font-size: 0.8rem;
 }
+
+.timer-caption {
+  color: var(--muted);
+  font-size: .76rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+.tracker-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  max-width: 680px;
+  margin: 16px auto 0;
+}
+
+.tracker-fact {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 0 12px;
+  border-left: 1px solid rgba(255, 255, 255, .1);
+}
+
+.tracker-fact:first-child { border-left: 0; }
+.tracker-fact-label { color: var(--muted); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
+.tracker-fact-value { font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .tracker-meta {
   color: var(--muted);
@@ -544,18 +571,18 @@ dialog::backdrop {
   font-size: 0.82rem;
 }
 
-@media (max-width: 1150px) {
-  .grid { grid-template-columns: 1fr 1fr; }
-  .main-panel { grid-column: 1 / -1; order: -1; }
-  .stats-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
 @media (max-width: 760px) {
   .app-shell { width: min(100% - 20px, 1500px); padding-top: 14px; }
   .topbar, .grid { grid-template-columns: 1fr; display: grid; }
   .top-actions { justify-content: stretch; }
   .top-actions .btn { flex: 1; }
-  .stats-grid, .stats-grid.four { grid-template-columns: 1fr; }
+  .panel { padding: 12px; }
+  .tracker-card { padding: 18px 12px 16px; }
+  .timer-display { font-size: clamp(3rem, 15vw, 4.5rem); }
+  .stats-grid, .stats-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .stat { padding: 10px 8px; border-radius: 12px; }
+  .stat .value { font-size: clamp(.95rem, 4vw, 1.3rem); white-space: nowrap; }
+  .stat .label { font-size: clamp(.62rem, 2.4vw, .76rem); line-height: 1.25; }
   .mini-table-row { grid-template-columns: 1fr; }
   .schedule-toolbar { grid-template-columns: 1fr 1fr; }
   .schedule-summary { grid-column: 1 / -1; text-align: left; }
@@ -564,6 +591,14 @@ dialog::backdrop {
   .schedule-row select { grid-column: 2 / -1; }
   .schedule-row input { grid-column: 2; }
   .schedule-duration { display: none; }
+}
+
+@media (max-width: 480px) {
+  .app-shell { width: min(100% - 12px, 1500px); }
+  .title-block h1 { font-size: 1.65rem; }
+  .tracker-fact { padding: 0 6px; }
+  .tracker-fact-label { font-size: .62rem; }
+  .tracker-fact-value { font-size: .86rem; }
 }
 
   </style>
@@ -591,12 +626,13 @@ dialog::backdrop {
     </header><section class="grid">
   <section class="panel main-panel stack">
     <div class="tracker-card">
-      <div class="tracker-label">Current Queue Tracker</div>
-      <div class="active-queue" id="activeQueueName">No active queue</div>
+      <div class="timer-caption" id="timerCaption">Remaining</div>
       <div class="timer-display" id="timerDisplay">--:--</div>
-      <div class="tracker-meta" id="timerEtc">ETC --:--</div>
-      <div class="tracker-meta" id="trackerStartedAt">Select a queue to start tracking actual work.</div>
-      <div class="tracker-status" id="trackerStatus">Queue selections and completed apps are saved for CSV export.</div>
+      <div class="tracker-facts">
+        <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Tracking since</span><span class="tracker-fact-value" id="trackerStartedAt">--:--</span></div>
+      </div>
       <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
     </div>
 
@@ -820,11 +856,11 @@ dialog::backdrop {
       scheduleSummary: document.getElementById("scheduleSummary"),
       addSegmentBtn: document.getElementById("addSegmentBtn"),
       segmentList: document.getElementById("segmentList"),
-      activeQueueName: document.getElementById("activeQueueName"),
       trackerStartedAt: document.getElementById("trackerStartedAt"),
-      trackerStatus: document.getElementById("trackerStatus"),
+      timerCaption: document.getElementById("timerCaption"),
       timerDisplay: document.getElementById("timerDisplay"),
       timerEtc: document.getElementById("timerEtc"),
+      timerTarget: document.getElementById("timerTarget"),
       timerProgress: document.getElementById("timerProgress"),
       completionQueue: document.getElementById("completionQueue"),
       completionUid: document.getElementById("completionUid"),
@@ -1312,22 +1348,16 @@ dialog::backdrop {
     function renderTimer() {
       const activeQueue = getActiveQueue();
       if (!activeQueue) {
-        els.activeQueueName.textContent = "No active queue";
         els.timerDisplay.textContent = "--:--";
-        els.timerEtc.textContent = "ETC --:--";
+        els.timerCaption.textContent = "Remaining";
+        els.timerEtc.textContent = "--:--";
+        els.timerTarget.textContent = "--:--";
         els.timerDisplay.classList.remove("overdue");
         els.timerProgress.style.width = "0%";
-        els.trackerStartedAt.textContent = "Select a queue to start tracking actual work.";
-        els.trackerStatus.textContent = "Queue selections and completed apps are saved for CSV export.";
+        els.trackerStartedAt.textContent = "--:--";
         document.title = BASE_TITLE;
         return;
       }
-
-      const plannedSegment = getPlannedSegmentAtNow();
-      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
-      const status = plannedQueue?.id === activeQueue.id
-        ? "Live queue matches the current plan segment."
-        : `Live queue is tracking actual work; current plan says ${plannedQueue?.name || "no productive queue"}.`;
 
       if (state.timerQueueId !== activeQueue.id || !state.timerStartedAt) {
         state.timerQueueId = activeQueue.id;
@@ -1340,13 +1370,13 @@ dialog::backdrop {
       const timerText = formatDuration(remaining);
       const estimatedCompletion = new Date(new Date(state.timerStartedAt).getTime() + secondsPerApp * 1000);
       els.timerDisplay.textContent = timerText;
-      els.timerEtc.textContent = `ETC ${formatClock(estimatedCompletion.toISOString())}`;
+      els.timerCaption.textContent = remaining < 0 ? "Overran" : "Remaining";
+      els.timerEtc.textContent = formatClock(estimatedCompletion.toISOString());
+      els.timerTarget.textContent = formatDuration(secondsPerApp);
       els.timerDisplay.classList.toggle("overdue", remaining < 0);
       els.timerProgress.style.width = `${Math.min(100, (elapsed / secondsPerApp) * 100)}%`;
 
-      els.activeQueueName.textContent = activeQueue.name;
-      els.trackerStartedAt.textContent = state.activeQueueStartedAt ? `Tracking since ${formatClock(state.activeQueueStartedAt)}.` : "Tracking from current plan.";
-      els.trackerStatus.textContent = `${status} Target pace: one app every ${formatDuration(secondsPerApp)}.`;
+      els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
       document.title = `${timerText} · ${activeQueue.name} - ${BASE_TITLE}`;
     }
 
