@@ -721,7 +721,7 @@ dialog::backdrop {
         <h2>Today’s Queue Plan</h2>
         <button class="btn small" value="close">Close</button>
       </div>
-      <p class="subtle">Set your shift, then add each change of activity. A segment runs until the next one begins; the final segment runs until shift end.</p>
+      <p class="subtle">The default shift is 11:00–19:30, beginning with a 15-minute team briefing. A segment runs until the next one begins, and changing the live active queue updates the remainder of the current segment.</p>
       <div class="schedule-toolbar">
         <div class="field">
           <label for="shiftStart">Shift starts</label>
@@ -755,6 +755,9 @@ dialog::backdrop {
     const TEAM_BRIEFING_NAME = "Team briefing";
     const TEAM_BRIEFING_ID = crypto.randomUUID();
     const BASE_TITLE = "Queue Performance Dashboard";
+    const DEFAULT_SHIFT_START = "11:00";
+    const DEFAULT_SHIFT_END = "19:30";
+    const TEAM_BRIEFING_MINUTES = 15;
 
     const defaultState = {
       queues: [
@@ -766,9 +769,9 @@ dialog::backdrop {
         { id: crypto.randomUUID(), name: "Sole Trader", rate: 2.71, color: "#d6fb0b" },
         { id: crypto.randomUUID(), name: "Sole Trader Resubmissions", rate: 2.75, color: "#f48a0f" }
       ],
-      shiftStart: "09:00",
-      shiftEnd: "17:00",
-      segments: [{ id: crypto.randomUUID(), queueId: TEAM_BRIEFING_ID, start: "11:00" }],
+      shiftStart: DEFAULT_SHIFT_START,
+      shiftEnd: DEFAULT_SHIFT_END,
+      segments: [{ id: crypto.randomUUID(), queueId: TEAM_BRIEFING_ID, start: DEFAULT_SHIFT_START }],
       completions: [],
       archive: [],
       activityLog: [],
@@ -851,7 +854,7 @@ dialog::backdrop {
           migrated.shiftStart = migrated.segments.reduce((earliest, segment) => segment.start < earliest ? segment.start : earliest, migrated.segments[0].start);
         }
         if (!parsed.shiftEnd && migrated.segments.length) {
-          migrated.shiftEnd = migrated.segments.reduce((latest, segment) => segment.end && segment.end > latest ? segment.end : latest, "17:00");
+          migrated.shiftEnd = migrated.segments.reduce((latest, segment) => segment.end && segment.end > latest ? segment.end : latest, DEFAULT_SHIFT_END);
         }
         migrated.segments = migrated.segments.map(({ end, ...segment }) => segment);
         delete migrated.selectedSegmentId;
@@ -1040,7 +1043,32 @@ dialog::backdrop {
         source
       });
       state.queueSwitchLog = state.queueSwitchLog.slice(0, 120);
+      updateCurrentScheduleQueue(queueId, plannedSegment, changedAt);
       logActivity("tracker", `Switched live queue to ${queue.name} (${adherenceText}).`);
+    }
+
+    function updateCurrentScheduleQueue(queueId, currentSegment, changedAt) {
+      if (!currentSegment || currentSegment.queueId === queueId) return;
+
+      const changedDate = new Date(changedAt);
+      const changedMinutes = changedDate.getHours() * 60 + changedDate.getMinutes();
+      const { start, end } = getSegmentBounds(currentSegment);
+      if (changedMinutes < start || changedMinutes >= end) return;
+
+      if (changedMinutes === start) {
+        currentSegment.queueId = queueId;
+        return;
+      }
+
+      const switchTime = timeFromMinutes(changedMinutes);
+      const segmentAtSwitchTime = state.segments.find(segment => segment.start === switchTime);
+      if (segmentAtSwitchTime) {
+        segmentAtSwitchTime.queueId = queueId;
+        return;
+      }
+
+      state.segments.push({ id: crypto.randomUUID(), queueId, start: switchTime });
+      sortSegments(false);
     }
 
     function getSegmentMinutes(segment) {
@@ -1352,11 +1380,13 @@ dialog::backdrop {
     }
 
     function addSegment() {
-      const queueId = state.queues[0]?.id;
+      const queueId = state.queues.find(queue => isProductiveQueue(queue))?.id || state.queues[0]?.id;
       if (!queueId) return alert("Add a queue before building a schedule.");
       const sorted = getSortedSegments();
-      const lastStart = sorted.length ? minutesFromTime(sorted.at(-1).start) : minutesFromTime(state.shiftStart) - 30;
-      const nextStart = Math.max(minutesFromTime(state.shiftStart), lastStart + 30);
+      const lastSegment = sorted.at(-1);
+      const lastStart = lastSegment ? minutesFromTime(lastSegment.start) : minutesFromTime(state.shiftStart) - 30;
+      const increment = getQueue(lastSegment?.queueId)?.name === TEAM_BRIEFING_NAME ? TEAM_BRIEFING_MINUTES : 30;
+      const nextStart = Math.max(minutesFromTime(state.shiftStart), lastStart + increment);
       if (nextStart >= minutesFromTime(state.shiftEnd)) return alert("There is no room for another activity before shift end. Move an existing start time earlier or extend the shift.");
       const start = timeFromMinutes(nextStart);
       const queue = getQueue(queueId);
@@ -1534,7 +1564,9 @@ dialog::backdrop {
         shiftEnd: state.shiftEnd
       });
       const briefingQueue = ensureTeamBriefingQueue();
-      state.segments = [{ id: crypto.randomUUID(), queueId: briefingQueue.id, start: "11:00" }];
+      state.shiftStart = DEFAULT_SHIFT_START;
+      state.shiftEnd = DEFAULT_SHIFT_END;
+      state.segments = [{ id: crypto.randomUUID(), queueId: briefingQueue.id, start: DEFAULT_SHIFT_START }];
       state.completions = [];
       state.activityLog = [];
       state.startingSnapshot = null;
