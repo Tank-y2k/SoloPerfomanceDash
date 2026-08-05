@@ -494,8 +494,6 @@ input:focus, select:focus, textarea:focus {
   text-shadow: 0 1px 3px rgba(0,0,0,.8);
   white-space: nowrap;
 }
-.timeline-block.excess { background: #52525b; }
-.timeline-block.excess .timeline-label { color: #e4e4e7; font-weight: 700; }
 
 .overview-heading {
   display: flex;
@@ -680,10 +678,6 @@ dialog::backdrop {
           <div class="value" id="completedCount">0</div>
           <div class="label">Apps completed</div>
         </article>
-        <article class="stat">
-          <div class="value" id="excessTime">0h 0m</div>
-          <div class="label">Excess planned time</div>
-        </article>
       </div>
     </section>
 
@@ -757,7 +751,7 @@ dialog::backdrop {
         <h2>Today’s Queue Plan</h2>
         <button class="btn small" value="close">Close</button>
       </div>
-      <p class="subtle">The default shift is 11:00–19:30, beginning with a 15-minute team briefing. A segment runs until the next one begins, and changing the live active queue updates the remainder of the current segment.</p>
+      <p class="subtle">The default shift is 11:00–19:30, beginning with a 15-minute team briefing. A segment runs until the next one begins. Live active queue changes are tracked separately and do not edit the schedule.</p>
       <div class="schedule-toolbar">
         <div class="field">
           <label for="shiftStart">Shift starts</label>
@@ -870,7 +864,6 @@ dialog::backdrop {
       completionOutcome: document.getElementById("completionOutcome"),
       completeAppBtn: document.getElementById("completeAppBtn"),
       completedCount: document.getElementById("completedCount"),
-      excessTime: document.getElementById("excessTime"),
       currentSegmentDetails: document.getElementById("currentSegmentDetails"),
       liveTrackerDetails: document.getElementById("liveTrackerDetails"),
       breakdownList: document.getElementById("breakdownList"),
@@ -1095,32 +1088,7 @@ dialog::backdrop {
         source
       });
       state.queueSwitchLog = state.queueSwitchLog.slice(0, 120);
-      updateCurrentScheduleQueue(queueId, plannedSegment, changedAt);
       logActivity("tracker", `Switched live queue to ${queue.name} (${adherenceText}).`);
-    }
-
-    function updateCurrentScheduleQueue(queueId, currentSegment, changedAt) {
-      if (!currentSegment || currentSegment.queueId === queueId) return;
-
-      const changedDate = new Date(changedAt);
-      const changedMinutes = changedDate.getHours() * 60 + changedDate.getMinutes();
-      const { start, end } = getSegmentBounds(currentSegment);
-      if (changedMinutes < start || changedMinutes >= end) return;
-
-      if (changedMinutes === start) {
-        currentSegment.queueId = queueId;
-        return;
-      }
-
-      const switchTime = timeFromMinutes(changedMinutes);
-      const segmentAtSwitchTime = state.segments.find(segment => segment.start === switchTime);
-      if (segmentAtSwitchTime) {
-        segmentAtSwitchTime.queueId = queueId;
-        return;
-      }
-
-      state.segments.push({ id: crypto.randomUUID(), queueId, start: switchTime });
-      sortSegments(false);
     }
 
     function getSegmentMinutes(segment) {
@@ -1138,14 +1106,16 @@ dialog::backdrop {
     }
 
     function getSegmentExpectedWholeApps(segment) {
-      return Math.floor(getSegmentExpectedApps(segment));
+      const expectedApps = getSegmentExpectedApps(segment);
+      return expectedApps > 0 ? Math.ceil(expectedApps) : 0;
     }
 
     function getExpectedFullDay(segments = state.segments, queues = state.queues) {
       return segments.reduce((sum, segment) => {
         const queue = getQueue(segment.queueId, queues);
         if (!queue) return sum;
-        return sum + Math.floor((getSegmentMinutes(segment) / 60) * Number(queue.rate || 0));
+        const expectedApps = (getSegmentMinutes(segment) / 60) * Number(queue.rate || 0);
+        return sum + (expectedApps > 0 ? Math.ceil(expectedApps) : 0);
       }, 0);
     }
 
@@ -1260,14 +1230,6 @@ dialog::backdrop {
       els.completedCount.textContent = state.completions.length;
       els.productiveHours.textContent = formatHoursMinutes(getPlannedHours(true));
       els.nonProductiveHours.textContent = formatHoursMinutes(getPlannedHours(false));
-      const excessMinutes = state.segments.reduce((sum, segment) => {
-        const queue = getQueue(segment.queueId);
-        if (!isProductiveQueue(queue)) return sum;
-        const segmentMinutes = getSegmentMinutes(segment);
-        const wholeApps = Math.floor((segmentMinutes / 60) * Number(queue.rate));
-        return sum + Math.max(0, segmentMinutes - (wholeApps / Number(queue.rate)) * 60);
-      }, 0);
-      els.excessTime.textContent = formatHoursMinutes(excessMinutes / 60);
     }
 
     function renderDayTimeline() {
@@ -1288,14 +1250,12 @@ dialog::backdrop {
         const queue = getQueue(segment.queueId);
         const segmentMinutes = getSegmentMinutes(segment);
         const expected = getSegmentExpectedWholeApps(segment);
-        const productiveMinutes = isProductiveQueue(queue) ? Math.min(segmentMinutes, (expected / Number(queue.rate)) * 60) : segmentMinutes;
-        const excessMinutes = Math.max(0, segmentMinutes - productiveMinutes);
-        const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No complete apps fit";
-        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${expectedText}`;
-        const productiveBlock = productiveMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(productiveMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${expected > 0 ? `<span class="timeline-label">${expected}</span>` : ""}</div>` : "";
-        const excessLabel = `${Math.round(excessMinutes)}m excess`;
-        const excessBlock = excessMinutes > .01 ? `<div class="timeline-block excess" title="${escapeHtml(`${queue?.name || "Queue"}: ${excessLabel}`)}" aria-label="${escapeHtml(excessLabel)}" style="width: ${(excessMinutes / total) * 100}%;"><span class="timeline-label">${Math.round(excessMinutes)}</span></div>` : "";
-        return productiveBlock + excessBlock;
+        const completed = state.completions.filter(app => app.segmentId === segment.id).length;
+        const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No expected apps";
+        const completedText = `${completed} completed`;
+        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${completedText} / ${expectedText}`;
+        const label = expected > 0 ? `${completed}/${expected}` : (completed > 0 ? `${completed}` : "");
+        return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${label ? `<span class="timeline-label">${label}</span>` : ""}</div>` : "";
       }).join("");
     }
 
