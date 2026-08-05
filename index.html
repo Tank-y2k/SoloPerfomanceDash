@@ -1072,8 +1072,6 @@ dialog::backdrop {
 
       state.activeQueueId = queueId;
       state.activeQueueStartedAt = changedAt;
-      state.timerQueueId = queueId;
-      state.timerStartedAt = changedAt;
       const adherenceText = plannedQueue
         ? (plannedQueue.id === queueId ? "matches the original plan" : `planned ${plannedQueue.name}`)
         : "outside planned time";
@@ -1327,39 +1325,64 @@ dialog::backdrop {
       `;
     }
 
+    function getScheduleDateAtMinutes(minutes) {
+      const date = nowDate();
+      date.setHours(0, 0, 0, 0);
+      date.setMinutes(minutes);
+      return date;
+    }
+
+    function getScheduledCompletionSlots() {
+      const slots = [];
+      for (const segment of getSortedSegments()) {
+        const queue = getQueue(segment.queueId);
+        if (!isProductiveQueue(queue)) continue;
+
+        const { start, end } = getSegmentBounds(segment);
+        const secondsPerApp = 3600 / Number(queue.rate);
+        for (let dueSeconds = start * 60 + secondsPerApp; dueSeconds <= end * 60 + 0.001; dueSeconds += secondsPerApp) {
+          slots.push({
+            at: getScheduleDateAtMinutes(dueSeconds / 60),
+            previousAt: getScheduleDateAtMinutes((dueSeconds - secondsPerApp) / 60),
+            queue,
+            secondsPerApp,
+            segment
+          });
+        }
+      }
+      return slots;
+    }
+
     function renderTimer() {
-      const activeQueue = getActiveQueue();
-      if (!activeQueue || !isProductiveQueue(activeQueue)) {
-        els.timerDisplay.textContent = activeQueue ? activeQueue.name : "--:--";
-        els.timerCaption.textContent = activeQueue ? "Non-productive activity" : "Remaining";
+      const now = nowDate();
+      const plannedSegment = getPlannedSegmentAtNow();
+      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
+      const slots = getScheduledCompletionSlots();
+      const nextSlot = slots.find(slot => slot.at.getTime() > now.getTime());
+      if (!nextSlot) {
+        els.timerDisplay.textContent = plannedQueue ? plannedQueue.name : "--:--";
+        els.timerCaption.textContent = slots.length ? "Schedule complete" : (plannedQueue ? "Non-productive activity" : "Remaining");
         els.timerEtc.textContent = "--:--";
         els.timerTarget.textContent = "--:--";
         els.timerDisplay.classList.remove("overdue");
-        els.timerProgress.style.width = "0%";
-        els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "--:--";
-        document.title = activeQueue ? `${activeQueue.name} - ${BASE_TITLE}` : BASE_TITLE;
+        els.timerProgress.style.width = slots.length ? "100%" : "0%";
+        els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
+        document.title = BASE_TITLE;
         return;
       }
 
-      if (state.timerQueueId !== activeQueue.id || !state.timerStartedAt) {
-        state.timerQueueId = activeQueue.id;
-        state.timerStartedAt = nowIso();
-        saveState();
-      }
-      const secondsPerApp = 3600 / Number(activeQueue.rate);
-      const elapsed = Math.max(0, (nowDate().getTime() - new Date(state.timerStartedAt).getTime()) / 1000);
-      const remaining = secondsPerApp - elapsed;
+      const remaining = (nextSlot.at.getTime() - now.getTime()) / 1000;
+      const elapsed = Math.max(0, (now.getTime() - nextSlot.previousAt.getTime()) / 1000);
       const timerText = formatDuration(remaining);
-      const estimatedCompletion = new Date(new Date(state.timerStartedAt).getTime() + secondsPerApp * 1000);
       els.timerDisplay.textContent = timerText;
-      els.timerCaption.textContent = remaining < 0 ? "Overran" : "Remaining";
-      els.timerEtc.textContent = formatClock(estimatedCompletion.toISOString());
-      els.timerTarget.textContent = formatDuration(secondsPerApp);
-      els.timerDisplay.classList.toggle("overdue", remaining < 0);
-      els.timerProgress.style.width = `${Math.min(100, (elapsed / secondsPerApp) * 100)}%`;
+      els.timerCaption.textContent = `Remaining · ${nextSlot.queue.name}`;
+      els.timerEtc.textContent = formatClock(nextSlot.at.toISOString());
+      els.timerTarget.textContent = formatDuration(nextSlot.secondsPerApp);
+      els.timerDisplay.classList.remove("overdue");
+      els.timerProgress.style.width = `${Math.min(100, Math.max(0, (elapsed / nextSlot.secondsPerApp) * 100))}%`;
 
       els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
-      document.title = `${timerText} · ${activeQueue.name} - ${BASE_TITLE}`;
+      document.title = `${timerText} · ${nextSlot.queue.name} - ${BASE_TITLE}`;
     }
 
     function renderAll() {
@@ -1434,8 +1457,6 @@ dialog::backdrop {
         activeQueueStartedAt: state.activeQueueStartedAt || null
       };
       state.completions.push(completion);
-      state.timerQueueId = queueId;
-      state.timerStartedAt = currentIso;
 
       els.completionUid.value = "";
       if (els.completionOutcome) els.completionOutcome.value = "";
@@ -1444,32 +1465,14 @@ dialog::backdrop {
     }
 
     function exportCompletionsCsv() {
-      if (!state.completions.length && !getQueueSwitchRows().length) return alert("No queue tracking history to export yet.");
-      const lines = ["record_type,uid,queue,outcome,recorded_at,queue_selected_at,planned_queue,planned_segment"];
-
-      for (const entry of getQueueSwitchRows().slice().reverse()) {
-        const queue = getQueue(entry.queueId);
-        const planned = entry.plannedQueueId ? getQueue(entry.plannedQueueId) : null;
-        const plannedSegment = entry.plannedSegmentId ? state.segments.find(item => item.id === entry.plannedSegmentId) : null;
-        const row = [
-          "queue_switch",
-          "",
-          queue?.name || "",
-          entry.source || "",
-          entry.at,
-          entry.at,
-          planned?.name || "",
-          plannedSegment ? `${plannedSegment.start}-${getSegmentEnd(plannedSegment)}` : ""
-        ].map(value => `"${String(value).replaceAll('"', '""')}"`).join(",");
-        lines.push(row);
-      }
+      if (!state.completions.length) return alert("No completion history to export yet.");
+      const lines = ["uid,queue,outcome,recorded_at,queue_selected_at,planned_queue,planned_segment"];
 
       for (const app of state.completions) {
         const queue = getQueue(app.queueId);
         const segment = app.segmentId ? state.segments.find(item => item.id === app.segmentId) : null;
         const plannedQueue = segment ? getQueue(segment.queueId) : null;
         const row = [
-          "completion",
           app.uid || "",
           queue?.name || "",
           app.outcome || "",
@@ -1488,7 +1491,7 @@ dialog::backdrop {
       link.download = `queue-history-${nowIso().slice(0, 10)}.csv`;
       link.click();
       URL.revokeObjectURL(url);
-      logActivity("export", `Exported CSV for ${state.completions.length} completions and ${getQueueSwitchRows().length} queue changes.`);
+      logActivity("export", `Exported CSV for ${state.completions.length} completions.`);
     }
 
     function saveSnapshot() {
