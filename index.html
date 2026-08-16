@@ -1339,8 +1339,17 @@ dialog::backdrop {
         if (!isProductiveQueue(queue)) continue;
 
         const { start, end } = getSegmentBounds(segment);
-        const secondsPerApp = 3600 / Number(queue.rate);
-        for (let dueSeconds = start * 60 + secondsPerApp; dueSeconds <= end * 60 + 0.001; dueSeconds += secondsPerApp) {
+        const segmentSeconds = Math.max(0, end - start) * 60;
+        const expectedApps = getSegmentExpectedWholeApps(segment);
+        if (!expectedApps || !segmentSeconds) continue;
+
+        // The segment target is rounded up to a whole app, so spread that whole
+        // target evenly across the available segment rather than retaining the
+        // queue's nominal interval. For example, eight apps in two hours should
+        // have a 15-minute timer even if the unrounded queue rate produced 7.3.
+        const secondsPerApp = segmentSeconds / expectedApps;
+        for (let appNumber = 1; appNumber <= expectedApps; appNumber += 1) {
+          const dueSeconds = start * 60 + (secondsPerApp * appNumber);
           slots.push({
             at: getScheduleDateAtMinutes(dueSeconds / 60),
             previousAt: getScheduleDateAtMinutes((dueSeconds - secondsPerApp) / 60),
