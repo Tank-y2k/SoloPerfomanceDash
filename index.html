@@ -546,6 +546,89 @@ input:focus, select:focus, textarea:focus {
 .notification-toast-title { margin-bottom: 4px; font-weight: 800; }
 .notification-toast-message { color: var(--muted); }
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
+
+.final-round {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  padding: 24px;
+  background:
+    repeating-linear-gradient(-12deg, transparent 0 18px, rgba(255, 255, 255, .035) 19px 21px),
+    radial-gradient(circle, rgba(239, 68, 68, .24), transparent 56%),
+    rgba(4, 5, 8, .88);
+  backdrop-filter: blur(6px);
+  animation: final-round-in .22s ease-out both;
+}
+
+.final-round::before,
+.final-round::after {
+  content: "";
+  position: absolute;
+  left: -10%;
+  width: 120%;
+  height: 15px;
+  background: linear-gradient(90deg, transparent, #facc15 15% 85%, transparent);
+  box-shadow: 0 0 28px rgba(250, 204, 21, .75);
+  transform: rotate(-4deg);
+}
+
+.final-round::before { top: 18%; }
+.final-round::after { bottom: 18%; transform: rotate(4deg); }
+
+.final-round-card {
+  position: relative;
+  width: min(860px, 94vw);
+  padding: clamp(30px, 7vw, 72px) 24px;
+  text-align: center;
+  isolation: isolate;
+}
+
+.final-round-kicker {
+  color: #fef08a;
+  font-size: clamp(.8rem, 2vw, 1.15rem);
+  font-weight: 1000;
+  letter-spacing: .42em;
+  text-transform: uppercase;
+  text-shadow: 0 2px 0 #7f1d1d;
+}
+
+.final-round-title {
+  margin: 4px 0;
+  color: #fff7d6;
+  font-size: clamp(4rem, 15vw, 9.5rem);
+  font-weight: 1000;
+  font-style: italic;
+  line-height: .78;
+  letter-spacing: -.09em;
+  text-transform: uppercase;
+  -webkit-text-stroke: clamp(1px, .25vw, 3px) #7f1d1d;
+  text-shadow: 6px 7px 0 #dc2626, 11px 13px 0 #450a0a, 0 0 34px rgba(250, 204, 21, .5);
+  transform: skew(-6deg) rotate(-2deg);
+  animation: final-round-hit .55s cubic-bezier(.2, .9, .2, 1.2) both;
+}
+
+.final-round-queue {
+  margin: 24px 0 5px;
+  font-size: clamp(1.2rem, 4vw, 2rem);
+  font-weight: 900;
+}
+
+.final-round-detail { margin: 0 0 20px; color: #d4d4d8; }
+.final-round .btn { min-width: 150px; background: rgba(24, 24, 27, .8); }
+
+@keyframes final-round-in { from { opacity: 0; } }
+@keyframes final-round-hit {
+  from { opacity: 0; transform: scale(2.2) skew(-6deg) rotate(-2deg); filter: blur(8px); }
+  65% { opacity: 1; transform: scale(.94) skew(-6deg) rotate(-2deg); filter: blur(0); }
+  to { transform: scale(1) skew(-6deg) rotate(-2deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .final-round, .final-round-title { animation: none; }
+}
 .row-flex { flex: 1; }
 .field-max-280 { max-width: 280px; }
 .field-max-220 { max-width: 220px; }
@@ -708,6 +791,15 @@ dialog::backdrop {
     <div class="notification-toast-title" id="notificationToastTitle"></div>
     <div class="notification-toast-message" id="notificationToastMessage"></div>
   </aside>
+  <aside class="final-round hidden" id="finalRound" role="dialog" aria-modal="true" aria-labelledby="finalRoundTitle" aria-describedby="finalRoundDetail">
+    <div class="final-round-card">
+      <div class="final-round-kicker">Final target</div>
+      <div class="final-round-title" id="finalRoundTitle">Final App</div>
+      <div class="final-round-queue" id="finalRoundQueue"></div>
+      <p class="final-round-detail" id="finalRoundDetail"></p>
+      <button class="btn" id="dismissFinalRoundBtn" type="button">Let’s go!</button>
+    </div>
+  </aside>
   <dialog id="notificationDialog">
     <form method="dialog" class="modal-inner stack">
       <div class="modal-header"><h2>Notifications</h2><button class="btn small" value="close">Close</button></div>
@@ -859,6 +951,7 @@ dialog::backdrop {
       notificationsEnabled: false,
       notificationSound: true,
       lastNotifiedSlot: null,
+      lastFinalRoundSegment: null,
       dayDate: localDateKey(),
     };
 
@@ -881,6 +974,10 @@ dialog::backdrop {
       notificationToast: document.getElementById("notificationToast"),
       notificationToastTitle: document.getElementById("notificationToastTitle"),
       notificationToastMessage: document.getElementById("notificationToastMessage"),
+      finalRound: document.getElementById("finalRound"),
+      finalRoundQueue: document.getElementById("finalRoundQueue"),
+      finalRoundDetail: document.getElementById("finalRoundDetail"),
+      dismissFinalRoundBtn: document.getElementById("dismissFinalRoundBtn"),
       planBtn: document.getElementById("planBtn"),
       archiveBtn: document.getElementById("archiveBtn"),
       snapshotBtn: document.getElementById("snapshotBtn"),
@@ -1412,6 +1509,8 @@ dialog::backdrop {
             previousAt: getScheduleDateAtMinutes((dueSeconds - secondsPerApp) / 60),
             queue,
             secondsPerApp,
+            appNumber,
+            expectedApps,
             segment
           });
         }
@@ -1420,7 +1519,29 @@ dialog::backdrop {
     }
 
     let toastTimeout;
+    let finalRoundTimeout;
     let audioContext;
+
+    function dismissFinalRound() {
+      clearTimeout(finalRoundTimeout);
+      els.finalRound.classList.add("hidden");
+    }
+
+    function checkFinalRound(slot, now) {
+      if (!slot || slot.appNumber !== slot.expectedApps) return;
+      if (now < slot.previousAt || getPlannedSegmentAtNow()?.id !== slot.segment.id) return;
+      const segmentKey = `${localDateKey()}|${slot.segment.id}`;
+      if (state.lastFinalRoundSegment === segmentKey) return;
+
+      state.lastFinalRoundSegment = segmentKey;
+      saveState();
+      els.finalRoundQueue.textContent = slot.queue.name;
+      els.finalRoundDetail.textContent = `The final scheduled app for this segment is due by ${formatClock(slot.at.toISOString())}.`;
+      els.finalRound.classList.remove("hidden");
+      els.dismissFinalRoundBtn.focus();
+      clearTimeout(finalRoundTimeout);
+      finalRoundTimeout = setTimeout(dismissFinalRound, 6500);
+    }
 
     function browserNotificationAvailable() {
       return "Notification" in window && window.isSecureContext;
@@ -1512,6 +1633,7 @@ dialog::backdrop {
       const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
       const slots = getScheduledCompletionSlots();
       const nextSlot = slots.find(slot => slot.at.getTime() > now.getTime());
+      checkFinalRound(nextSlot, now);
       if (!nextSlot) {
         els.timerDisplay.textContent = plannedQueue ? plannedQueue.name : "--:--";
         els.timerCaption.textContent = slots.length ? "Schedule complete" : (plannedQueue ? "Non-productive activity" : "Remaining");
@@ -1745,6 +1867,7 @@ dialog::backdrop {
       state.timerStartedAt = null;
       state.timerQueueId = null;
       state.lastNotifiedSlot = null;
+      state.lastFinalRoundSegment = null;
       state.dayDate = localDateKey();
       renderAll();
       if (openSchedule) setTimeout(() => els.planDialog.showModal(), 0);
@@ -1826,6 +1949,13 @@ dialog::backdrop {
     els.enableNotificationsBtn.addEventListener("click", enableBrowserNotifications);
     els.testNotificationBtn.addEventListener("click", () => {
       sendNotification("Test notification", "Queue Performance Dashboard reminders are working.");
+    });
+    els.dismissFinalRoundBtn.addEventListener("click", dismissFinalRound);
+    els.finalRound.addEventListener("click", event => {
+      if (event.target === els.finalRound) dismissFinalRound();
+    });
+    document.addEventListener("keydown", event => {
+      if (event.key === "Escape" && !els.finalRound.classList.contains("hidden")) dismissFinalRound();
     });
     els.notificationReminders.addEventListener("change", () => {
       state.notificationsEnabled = els.notificationReminders.checked;
