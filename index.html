@@ -1647,14 +1647,16 @@ dialog::backdrop {
       }
 
       const remaining = (nextSlot.at.getTime() - now.getTime()) / 1000;
-      const elapsed = Math.max(0, (now.getTime() - nextSlot.previousAt.getTime()) / 1000);
       const timerText = formatDuration(remaining);
       els.timerDisplay.textContent = timerText;
       els.timerCaption.textContent = `Remaining · ${nextSlot.queue.name}`;
       els.timerEtc.textContent = formatClock(nextSlot.at.toISOString());
       els.timerTarget.textContent = formatDuration(nextSlot.secondsPerApp);
       els.timerDisplay.classList.remove("overdue");
-      els.timerProgress.style.width = `${Math.min(100, Math.max(0, (elapsed / nextSlot.secondsPerApp) * 100))}%`;
+      // Keep the bar in the same countdown direction as the displayed time:
+      // full at the start of a target window and empty when the target is due.
+      const remainingProgress = (remaining / nextSlot.secondsPerApp) * 100;
+      els.timerProgress.style.width = `${Math.min(100, Math.max(0, remainingProgress))}%`;
 
       els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
       document.title = `${timerText} · ${nextSlot.queue.name} - ${BASE_TITLE}`;
