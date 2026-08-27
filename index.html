@@ -1683,23 +1683,27 @@ dialog::backdrop {
     els.addQueueBtn.addEventListener("click", addQueue);
     els.addSegmentBtn.addEventListener("click", addSegment);
     els.segmentList.addEventListener("change", event => {
-      const segmentId = event.target.dataset.segmentQueue || event.target.dataset.segmentStart;
+      const segmentId = event.target.dataset.segmentQueue;
       const segment = state.segments.find(item => item.id === segmentId);
       if (!segment) return;
-      if (event.target.dataset.segmentQueue) {
-        segment.queueId = event.target.value;
-        logActivity("plan", `Changed the ${segment.start} activity to ${getQueue(segment.queueId)?.name || "queue"}.`);
-      } else {
-        const start = event.target.value;
-        segment.start = start;
-        sortSegments(false);
-        logActivity("plan", `Moved an activity to ${start}.`);
-      }
+      segment.queueId = event.target.value;
+      logActivity("plan", `Changed the ${segment.start} activity to ${getQueue(segment.queueId)?.name || "queue"}.`);
+      renderAll();
+    });
+    els.segmentList.addEventListener("focusout", event => {
+      const segmentId = event.target.dataset.segmentStart;
+      const segment = state.segments.find(item => item.id === segmentId);
+      if (!segment || segment.start === event.target.value) return;
+      const start = event.target.value;
+      segment.start = start;
+      sortSegments(false);
+      logActivity("plan", `Moved an activity to ${start}.`);
       renderAll();
     });
     function updateShift() {
       const start = els.shiftStart.value;
       const end = els.shiftEnd.value;
+      if (state.shiftStart === start && state.shiftEnd === end) return;
       state.shiftStart = start;
       state.shiftEnd = end;
       logActivity("plan", `Updated shift to ${start}-${end}.`);
@@ -1737,8 +1741,8 @@ dialog::backdrop {
       }
       return true;
     }
-    els.shiftStart.addEventListener("change", updateShift);
-    els.shiftEnd.addEventListener("change", updateShift);
+    els.shiftStart.addEventListener("blur", updateShift);
+    els.shiftEnd.addEventListener("blur", updateShift);
     els.planForm.addEventListener("submit", event => {
       if (!validateScheduleBeforeClose()) event.preventDefault();
     });
