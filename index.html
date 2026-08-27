@@ -1486,7 +1486,12 @@ dialog::backdrop {
     function getScheduleDateAtMinutes(minutes) {
       const date = nowDate();
       date.setHours(0, 0, 0, 0);
-      date.setMinutes(minutes);
+      // Date#setMinutes truncates a fractional minute before applying it. Our
+      // target cadence can include seconds (for example, 48 seconds), so using
+      // it directly snapped every due time to a minute boundary. That made the
+      // countdown briefly show up to 00:59 while its 00:48 progress bar stayed
+      // full. Apply the offset as milliseconds to preserve the entire cadence.
+      date.setMilliseconds(Math.round(minutes * 60 * 1000));
       return date;
     }
 
