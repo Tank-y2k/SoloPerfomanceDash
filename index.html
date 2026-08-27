@@ -1243,31 +1243,35 @@ dialog::backdrop {
       logActivity("tracker", `Switched live queue to ${queue.name} (${adherenceText}).`);
     }
 
-    function getSegmentMinutes(segment) {
-      const { start, end } = getSegmentBounds(segment);
+    function getSegmentMinutes(segment, segments = state.segments, shiftEnd = state.shiftEnd) {
+      const { start, end } = getSegmentBounds(segment, segments, shiftEnd);
       return Math.max(0, end - start);
     }
 
-    function getSegmentExpectedApps(segment, untilMinutes = null) {
-      const queue = getQueue(segment.queueId);
-      if (!queue) return 0;
-      const { start, end } = getSegmentBounds(segment);
-      const effectiveEnd = untilMinutes === null ? end : Math.min(Math.max(untilMinutes, start), end);
-      const minutes = Math.max(0, effectiveEnd - start);
-      return (minutes / 60) * Number(queue.rate || 0);
+    // This is the single source of truth for every segment target. A fractional
+    // app cannot be completed, so first round the segment total up and only then
+    // derive its cadence. Timer readouts, bars, reminders and target totals all
+    // consume this same plan.
+    function getSegmentTargetPlan(segment, segments = state.segments, queues = state.queues, shiftEnd = state.shiftEnd) {
+      const queue = getQueue(segment.queueId, queues);
+      const durationSeconds = getSegmentMinutes(segment, segments, shiftEnd) * 60;
+      const rawExpectedApps = queue ? (durationSeconds / 3600) * Number(queue.rate || 0) : 0;
+      const expectedApps = rawExpectedApps > 0 ? Math.ceil(rawExpectedApps) : 0;
+      return {
+        rawExpectedApps,
+        expectedApps,
+        durationSeconds,
+        secondsPerApp: expectedApps > 0 ? durationSeconds / expectedApps : 0
+      };
     }
 
     function getSegmentExpectedWholeApps(segment) {
-      const expectedApps = getSegmentExpectedApps(segment);
-      return expectedApps > 0 ? Math.ceil(expectedApps) : 0;
+      return getSegmentTargetPlan(segment).expectedApps;
     }
 
     function getExpectedFullDay(segments = state.segments, queues = state.queues) {
       return segments.reduce((sum, segment) => {
-        const queue = getQueue(segment.queueId, queues);
-        if (!queue) return sum;
-        const expectedApps = (getSegmentMinutes(segment) / 60) * Number(queue.rate || 0);
-        return sum + (expectedApps > 0 ? Math.ceil(expectedApps) : 0);
+        return sum + getSegmentTargetPlan(segment, segments, queues).expectedApps;
       }, 0);
     }
 
@@ -1492,25 +1496,23 @@ dialog::backdrop {
         const queue = getQueue(segment.queueId);
         if (!isProductiveQueue(queue)) continue;
 
-        const { start, end } = getSegmentBounds(segment);
-        const segmentSeconds = Math.max(0, end - start) * 60;
-        const expectedApps = getSegmentExpectedWholeApps(segment);
-        if (!expectedApps || !segmentSeconds) continue;
+        const { start } = getSegmentBounds(segment);
+        const target = getSegmentTargetPlan(segment);
+        if (!target.expectedApps || !target.durationSeconds) continue;
 
         // The segment target is rounded up to a whole app, so spread that whole
         // target evenly across the available segment rather than retaining the
         // queue's nominal interval. For example, eight apps in two hours should
         // have a 15-minute timer even if the unrounded queue rate produced 7.3.
-        const secondsPerApp = segmentSeconds / expectedApps;
-        for (let appNumber = 1; appNumber <= expectedApps; appNumber += 1) {
-          const dueSeconds = start * 60 + (secondsPerApp * appNumber);
+        for (let appNumber = 1; appNumber <= target.expectedApps; appNumber += 1) {
+          const dueSeconds = start * 60 + (target.secondsPerApp * appNumber);
           slots.push({
             at: getScheduleDateAtMinutes(dueSeconds / 60),
-            previousAt: getScheduleDateAtMinutes((dueSeconds - secondsPerApp) / 60),
+            previousAt: getScheduleDateAtMinutes((dueSeconds - target.secondsPerApp) / 60),
             queue,
-            secondsPerApp,
+            secondsPerApp: target.secondsPerApp,
             appNumber,
-            expectedApps,
+            expectedApps: target.expectedApps,
             segment
           });
         }
@@ -1617,7 +1619,8 @@ dialog::backdrop {
     function checkDueNotifications() {
       if (!state.notificationsEnabled) return;
       const now = nowDate();
-      const dueSlots = getScheduledCompletionSlots().filter(slot => slot.at <= now);
+      const currentSegment = getSegmentAtDate(now, true);
+      const dueSlots = getScheduledCompletionSlots().filter(slot => slot.segment.id === currentSegment?.id && slot.at <= now);
       const latest = dueSlots.at(-1);
       if (!latest) return;
       const slotKey = `${localDateKey()}|${latest.segment.id}|${latest.at.toISOString()}`;
@@ -1632,15 +1635,18 @@ dialog::backdrop {
       const plannedSegment = getPlannedSegmentAtNow();
       const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
       const slots = getScheduledCompletionSlots();
-      const nextSlot = slots.find(slot => slot.at.getTime() > now.getTime());
+      const currentSlots = plannedSegment ? slots.filter(slot => slot.segment.id === plannedSegment.id) : [];
+      const nextSlot = currentSlots.find(slot => slot.at.getTime() > now.getTime());
       checkFinalRound(nextSlot, now);
       if (!nextSlot) {
         els.timerDisplay.textContent = plannedQueue ? plannedQueue.name : "--:--";
-        els.timerCaption.textContent = slots.length ? "Schedule complete" : (plannedQueue ? "Non-productive activity" : "Remaining");
+        els.timerCaption.textContent = !plannedQueue
+          ? "Remaining"
+          : (isProductiveQueue(plannedQueue) ? "Segment target complete" : "Non-productive activity");
         els.timerEtc.textContent = "--:--";
         els.timerTarget.textContent = "--:--";
         els.timerDisplay.classList.remove("overdue");
-        els.timerProgress.style.width = slots.length ? "100%" : "0%";
+        els.timerProgress.style.width = "0%";
         els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
         document.title = BASE_TITLE;
         return;
@@ -1831,10 +1837,12 @@ dialog::backdrop {
     }
 
     function getSnapshotSegmentExpected(segment) {
-      const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
-      if (!queue) return 0;
-      const { start, end } = getSegmentBounds(segment, state.startingSnapshot.segments, state.startingSnapshot.shiftEnd || state.shiftEnd);
-      return Math.floor((Math.max(0, end - start) / 60) * Number(queue.rate || 0));
+      return getSegmentTargetPlan(
+        segment,
+        state.startingSnapshot.segments,
+        state.startingSnapshot.queues,
+        state.startingSnapshot.shiftEnd || state.shiftEnd
+      ).expectedApps;
     }
 
     function getSnapshotSegmentEnd(segment) {
