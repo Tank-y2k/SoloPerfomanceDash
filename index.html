@@ -528,6 +528,24 @@ input:focus, select:focus, textarea:focus {
 }
 
 .hidden { display: none !important; }
+.notification-status { line-height: 1.5; }
+.notification-status strong { color: var(--text); }
+.notification-toast {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 100;
+  width: min(380px, calc(100vw - 32px));
+  padding: 16px;
+  border: 1px solid rgba(94, 234, 212, .45);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+  animation: toast-in .2s ease-out;
+}
+.notification-toast-title { margin-bottom: 4px; font-weight: 800; }
+.notification-toast-message { color: var(--muted); }
+@keyframes toast-in { from { opacity: 0; transform: translateY(8px); } }
 .row-flex { flex: 1; }
 .field-max-280 { max-width: 280px; }
 .field-max-220 { max-width: 220px; }
@@ -611,6 +629,7 @@ dialog::backdrop {
         <button class="btn" id="menuBtn">Menu</button>
         <div class="menu-panel hidden" id="topMenuPanel">
           <button class="btn" id="settingsBtn">Queue Settings</button>
+          <button class="btn" id="notificationsBtn">Notifications</button>
           <button class="btn" id="planBtn">Schedule</button>
           <button class="btn" id="archiveBtn">Archived Days</button>
           <button class="btn" id="snapshotBtn">Save Current Plan</button>
@@ -684,7 +703,31 @@ dialog::backdrop {
   </section>
 </section>
 
-  </main>  <dialog id="detailsDialog">
+  </main>
+  <aside class="notification-toast hidden" id="notificationToast" role="status" aria-live="polite">
+    <div class="notification-toast-title" id="notificationToastTitle"></div>
+    <div class="notification-toast-message" id="notificationToastMessage"></div>
+  </aside>
+  <dialog id="notificationDialog">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header"><h2>Notifications</h2><button class="btn small" value="close">Close</button></div>
+      <p class="subtle">Get a reminder when a scheduled app target is due. The dashboard must remain open for reminders to run.</p>
+      <section class="panel-soft stack">
+        <div id="notificationStatus" class="notification-status subtle"></div>
+        <label class="row" style="text-transform: none; letter-spacing: 0;">
+          <input id="notificationReminders" type="checkbox" style="width: auto;" /> Enable scheduled target reminders
+        </label>
+        <div class="row">
+          <button class="btn primary" id="enableNotificationsBtn" type="button">Enable browser notifications</button>
+          <button class="btn" id="testNotificationBtn" type="button">Send test</button>
+        </div>
+        <label class="row" style="text-transform: none; letter-spacing: 0;">
+          <input id="notificationSound" type="checkbox" style="width: auto;" /> Play a sound with reminders
+        </label>
+      </section>
+      <p class="footer-note">Local <code>file://</code> pages do not have consistent notification permission support across browsers. If native notifications are unavailable or blocked, the dashboard automatically uses an in-page notification and sound instead. Serving this file from <code>http://localhost</code> gives browser notifications the best chance of working.</p>
+    </form>
+  </dialog>  <dialog id="detailsDialog">
     <form method="dialog" class="modal-inner stack">
       <div class="modal-header"><h2>Plan Details</h2><button class="btn small" value="close">Close</button></div>
       <section class="panel-soft stack"><h3>Live Queue Tracker</h3><div id="liveTrackerDetails" class="subtle">Queue changes will appear here.</div></section>
@@ -813,6 +856,9 @@ dialog::backdrop {
       queueSwitchLog: [],
       timerStartedAt: null,
       timerQueueId: null,
+      notificationsEnabled: false,
+      notificationSound: true,
+      lastNotifiedSlot: null,
       dayDate: localDateKey(),
     };
 
@@ -825,6 +871,16 @@ dialog::backdrop {
       menuBtn: document.getElementById("menuBtn"),
       topMenuPanel: document.getElementById("topMenuPanel"),
       settingsBtn: document.getElementById("settingsBtn"),
+      notificationsBtn: document.getElementById("notificationsBtn"),
+      notificationDialog: document.getElementById("notificationDialog"),
+      notificationStatus: document.getElementById("notificationStatus"),
+      enableNotificationsBtn: document.getElementById("enableNotificationsBtn"),
+      testNotificationBtn: document.getElementById("testNotificationBtn"),
+      notificationSound: document.getElementById("notificationSound"),
+      notificationReminders: document.getElementById("notificationReminders"),
+      notificationToast: document.getElementById("notificationToast"),
+      notificationToastTitle: document.getElementById("notificationToastTitle"),
+      notificationToastMessage: document.getElementById("notificationToastMessage"),
       planBtn: document.getElementById("planBtn"),
       archiveBtn: document.getElementById("archiveBtn"),
       snapshotBtn: document.getElementById("snapshotBtn"),
@@ -1363,6 +1419,93 @@ dialog::backdrop {
       return slots;
     }
 
+    let toastTimeout;
+    let audioContext;
+
+    function browserNotificationAvailable() {
+      return "Notification" in window && window.isSecureContext;
+    }
+
+    function renderNotificationStatus() {
+      const isLocalFile = location.protocol === "file:";
+      const permission = "Notification" in window ? Notification.permission : "unavailable";
+      const nativeReady = browserNotificationAvailable() && permission === "granted";
+      const mode = nativeReady ? "Browser notifications" : "In-page notification fallback";
+      els.notificationStatus.innerHTML = `<strong>${mode}</strong><br>${isLocalFile ? "This dashboard is open as a local file, so native permission may be unavailable or browser-dependent." : `Permission: ${escapeHtml(permission)}.`}`;
+      els.enableNotificationsBtn.disabled = !browserNotificationAvailable() || permission === "denied";
+      els.enableNotificationsBtn.textContent = permission === "granted" ? "Browser notifications enabled" : "Enable browser notifications";
+      els.notificationSound.checked = state.notificationSound !== false;
+      els.notificationReminders.checked = state.notificationsEnabled === true;
+    }
+
+    function playNotificationSound() {
+      if (state.notificationSound === false) return;
+      try {
+        audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+        const start = audioContext.currentTime;
+        [660, 880].forEach((frequency, index) => {
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.frequency.value = frequency;
+          gain.gain.setValueAtTime(.0001, start + index * .14);
+          gain.gain.exponentialRampToValueAtTime(.16, start + index * .14 + .02);
+          gain.gain.exponentialRampToValueAtTime(.0001, start + index * .14 + .13);
+          oscillator.connect(gain).connect(audioContext.destination);
+          oscillator.start(start + index * .14);
+          oscillator.stop(start + index * .14 + .14);
+        });
+      } catch { /* The visible fallback still works when audio is blocked. */ }
+    }
+
+    function showInPageNotification(title, message) {
+      els.notificationToastTitle.textContent = title;
+      els.notificationToastMessage.textContent = message;
+      els.notificationToast.classList.remove("hidden");
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => els.notificationToast.classList.add("hidden"), 7000);
+    }
+
+    function sendNotification(title, message) {
+      let nativeSent = false;
+      if (browserNotificationAvailable() && Notification.permission === "granted") {
+        try {
+          const notification = new Notification(title, { body: message, tag: "queue-target", renotify: true });
+          notification.onclick = () => { window.focus(); notification.close(); };
+          nativeSent = true;
+        } catch { /* Fall through to the reliable in-page notification. */ }
+      }
+      if (!nativeSent) showInPageNotification(title, message);
+      playNotificationSound();
+    }
+
+    async function enableBrowserNotifications() {
+      state.notificationsEnabled = true;
+      if (!browserNotificationAvailable()) {
+        saveState();
+        renderNotificationStatus();
+        showInPageNotification("Fallback enabled", "Native notifications are unavailable here; in-page reminders will be used.");
+        return;
+      }
+      const permission = await Notification.requestPermission();
+      saveState();
+      renderNotificationStatus();
+      if (permission === "granted") sendNotification("Notifications enabled", "Scheduled target reminders are ready.");
+      else showInPageNotification("Fallback enabled", "Browser permission was not granted; in-page reminders will be used.");
+    }
+
+    function checkDueNotifications() {
+      if (!state.notificationsEnabled) return;
+      const now = nowDate();
+      const dueSlots = getScheduledCompletionSlots().filter(slot => slot.at <= now);
+      const latest = dueSlots.at(-1);
+      if (!latest) return;
+      const slotKey = `${localDateKey()}|${latest.segment.id}|${latest.at.toISOString()}`;
+      if (state.lastNotifiedSlot === slotKey) return;
+      state.lastNotifiedSlot = slotKey;
+      saveState();
+      sendNotification("App target due", `${latest.queue.name} target reached at ${formatClock(latest.at.toISOString())}.`);
+    }
+
     function renderTimer() {
       const now = nowDate();
       const plannedSegment = getPlannedSegmentAtNow();
@@ -1407,6 +1550,7 @@ dialog::backdrop {
       renderLiveTracker();
       renderCurrentSegmentDetails();
       renderTimer();
+      renderNotificationStatus();
       saveState();
     }
 
@@ -1600,6 +1744,7 @@ dialog::backdrop {
       state.queueSwitchLog = [];
       state.timerStartedAt = null;
       state.timerQueueId = null;
+      state.lastNotifiedSlot = null;
       state.dayDate = localDateKey();
       renderAll();
       if (openSchedule) setTimeout(() => els.planDialog.showModal(), 0);
@@ -1677,6 +1822,20 @@ dialog::backdrop {
     });
 
     els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
+    els.notificationsBtn.addEventListener("click", () => { renderNotificationStatus(); els.notificationDialog.showModal(); });
+    els.enableNotificationsBtn.addEventListener("click", enableBrowserNotifications);
+    els.testNotificationBtn.addEventListener("click", () => {
+      sendNotification("Test notification", "Queue Performance Dashboard reminders are working.");
+    });
+    els.notificationReminders.addEventListener("change", () => {
+      state.notificationsEnabled = els.notificationReminders.checked;
+      saveState();
+    });
+    els.notificationSound.addEventListener("change", () => {
+      state.notificationSound = els.notificationSound.checked;
+      saveState();
+      if (state.notificationSound) playNotificationSound();
+    });
     els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
     els.planBtn.addEventListener("click", () => els.planDialog.showModal());
     els.archiveBtn.addEventListener("click", () => els.archiveDialog.showModal());
@@ -1781,7 +1940,7 @@ dialog::backdrop {
     if (els.completionOutcome) els.completionOutcome.value = "";
     renderAll();
     checkForNewDay();
-    setInterval(renderTimer, 1000);
+    setInterval(() => { renderTimer(); checkDueNotifications(); }, 1000);
     setInterval(checkForNewDay, 60000);
   </script></body>
   </html>
