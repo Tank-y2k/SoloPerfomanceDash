@@ -746,7 +746,7 @@ dialog::backdrop {
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
   </dialog>  <dialog id="planDialog" class="schedule-modal">
-    <form method="dialog" class="modal-inner stack">
+    <form method="dialog" class="modal-inner stack" id="planForm">
       <div class="modal-header">
         <h2>Today’s Queue Plan</h2>
         <button class="btn small" value="close">Close</button>
@@ -833,6 +833,7 @@ dialog::backdrop {
       resetBtn: document.getElementById("resetBtn"),
       settingsDialog: document.getElementById("settingsDialog"),
       planDialog: document.getElementById("planDialog"),
+      planForm: document.getElementById("planForm"),
       archiveDialog: document.getElementById("archiveDialog"),
       reviewDialog: document.getElementById("reviewDialog"),
       completionDialog: document.getElementById("completionDialog"),
@@ -1428,10 +1429,10 @@ dialog::backdrop {
       if (!queueId) return alert("Add a queue before building a schedule.");
       const sorted = getSortedSegments();
       const lastSegment = sorted.at(-1);
-      const lastStart = lastSegment ? minutesFromTime(lastSegment.start) : minutesFromTime(state.shiftStart) - 30;
+      const shiftStart = minutesFromTime(state.shiftStart);
+      const lastStart = lastSegment ? minutesFromTime(lastSegment.start) : shiftStart - 30;
       const increment = getQueue(lastSegment?.queueId)?.name === TEAM_BRIEFING_NAME ? TEAM_BRIEFING_MINUTES : 30;
-      const nextStart = Math.max(minutesFromTime(state.shiftStart), lastStart + increment);
-      if (nextStart >= minutesFromTime(state.shiftEnd)) return alert("There is no room for another activity before shift end. Move an existing start time earlier or extend the shift.");
+      const nextStart = Math.max(Number.isFinite(shiftStart) ? shiftStart : 0, Number.isFinite(lastStart) ? lastStart + increment : 0);
       const start = timeFromMinutes(nextStart);
       const queue = getQueue(queueId);
       state.segments.push({ id: crypto.randomUUID(), queueId, start });
@@ -1690,14 +1691,6 @@ dialog::backdrop {
         logActivity("plan", `Changed the ${segment.start} activity to ${getQueue(segment.queueId)?.name || "queue"}.`);
       } else {
         const start = event.target.value;
-        if (!start || minutesFromTime(start) < minutesFromTime(state.shiftStart) || minutesFromTime(start) >= minutesFromTime(state.shiftEnd)) {
-          alert("Activity starts must fall within the shift.");
-          return renderAll();
-        }
-        if (state.segments.some(item => item.id !== segment.id && item.start === start)) {
-          alert("Two activities cannot start at the same time.");
-          return renderAll();
-        }
         segment.start = start;
         sortSegments(false);
         logActivity("plan", `Moved an activity to ${start}.`);
@@ -1707,21 +1700,51 @@ dialog::backdrop {
     function updateShift() {
       const start = els.shiftStart.value;
       const end = els.shiftEnd.value;
-      if (!start || !end || minutesFromTime(end) <= minutesFromTime(start)) {
-        alert("Shift end must be after shift start.");
-        return renderAll();
-      }
-      if (state.segments.some(segment => minutesFromTime(segment.start) < minutesFromTime(start) || minutesFromTime(segment.start) >= minutesFromTime(end))) {
-        alert("Move all activity starts inside the new shift times first.");
-        return renderAll();
-      }
       state.shiftStart = start;
       state.shiftEnd = end;
       logActivity("plan", `Updated shift to ${start}-${end}.`);
       renderAll();
     }
+    function validateScheduleBeforeClose() {
+      const shiftStart = minutesFromTime(state.shiftStart);
+      const shiftEnd = minutesFromTime(state.shiftEnd);
+      if (!state.shiftStart || !state.shiftEnd || !Number.isFinite(shiftStart) || !Number.isFinite(shiftEnd) || shiftEnd <= shiftStart) {
+        alert("Shift end must be after shift start.");
+        (!state.shiftStart ? els.shiftStart : els.shiftEnd).focus();
+        return false;
+      }
+
+      const invalidSegment = state.segments.find(segment => {
+        const start = minutesFromTime(segment.start);
+        return !segment.start || !Number.isFinite(start) || start < shiftStart || start >= shiftEnd;
+      });
+      if (invalidSegment) {
+        alert("Activity starts must fall within the shift.");
+        els.segmentList.querySelector(`[data-segment-start="${invalidSegment.id}"]`)?.focus();
+        return false;
+      }
+
+      const seenStarts = new Set();
+      const duplicateSegment = state.segments.find(segment => {
+        if (seenStarts.has(segment.start)) return true;
+        seenStarts.add(segment.start);
+        return false;
+      });
+      if (duplicateSegment) {
+        alert("Two activities cannot start at the same time.");
+        els.segmentList.querySelector(`[data-segment-start="${duplicateSegment.id}"]`)?.focus();
+        return false;
+      }
+      return true;
+    }
     els.shiftStart.addEventListener("change", updateShift);
     els.shiftEnd.addEventListener("change", updateShift);
+    els.planForm.addEventListener("submit", event => {
+      if (!validateScheduleBeforeClose()) event.preventDefault();
+    });
+    els.planDialog.addEventListener("cancel", event => {
+      if (!validateScheduleBeforeClose()) event.preventDefault();
+    });
     els.completeAppBtn.addEventListener("click", completeApp);
     els.completionQueue.addEventListener("change", () => {
       setActiveQueue(els.completionQueue.value, "manual");
