@@ -63,9 +63,26 @@ a.btn { text-decoration: none; }
 
 .top-actions {
   display: flex;
+  gap: 8px;
   justify-content: flex-end;
   position: relative;
 }
+
+.icon-btn {
+  width: 42px;
+  padding-inline: 0;
+  font-size: 1.25rem;
+  text-decoration: none;
+}
+
+.outcome-actions {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(100px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.outcome-actions .btn { min-height: 46px; }
 
 .menu-panel {
   position: absolute;
@@ -716,6 +733,7 @@ dialog::backdrop {
   .schedule-row select { grid-column: 2 / -1; }
   .schedule-row input { grid-column: 2; }
   .schedule-duration { display: none; }
+  .outcome-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 480px) {
@@ -735,17 +753,15 @@ dialog::backdrop {
         <h1>Queue Performance Dashboard</h1>
       </section>
       <section class="top-actions">
+        <a class="btn icon-btn" href="help.html" aria-label="Help" title="Help">?</a>
         <button class="btn" id="menuBtn">Menu</button>
         <div class="menu-panel hidden" id="topMenuPanel">
-          <a class="btn" href="help.html">Help</a>
           <button class="btn" id="settingsBtn">Queue Settings</button>
           <button class="btn" id="notificationsBtn">Notifications</button>
           <button class="btn" id="planBtn">Schedule</button>
-          <button class="btn" id="archiveBtn">Archived Days</button>
           <button class="btn" id="snapshotBtn">Save Current Plan</button>
           <button class="btn warning" id="endDayBtn">End Day Review</button>
           <button class="btn" id="completedAppsBtn">Completed Apps</button>
-          <button class="btn" id="detailsBtn">Plan Details</button>
           <button class="btn" id="exportCsvBtn">Export CSV</button>
           <button class="btn danger" id="resetBtn">Reset Day</button>
         </div>
@@ -758,34 +774,16 @@ dialog::backdrop {
       <div class="tracker-facts">
         <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Tracking since</span><span class="tracker-fact-value" id="trackerStartedAt">--:--</span></div>
       </div>
       <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
     </div>
 
-    <div class="row between">
-      <div class="row row-flex">
-        <div class="field field-max-280">
-          <label for="completionQueue">Queue</label>
-          <select id="completionQueue"></select>
-        </div>
-        <div class="field field-max-220">
-          <label for="completionUid">App UID</label>
-          <input id="completionUid" placeholder="Enter UID" />
-        </div>
-        <div class="field field-max-220">
-          <label for="completionOutcome">Outcome</label>
-          <select id="completionOutcome">
-            <option value="">Select outcome</option>
-            <option value="Approve">Approve</option>
-            <option value="Resubmit">Resubmit</option>
-            <option value="Decline">Decline</option>
-            <option value="Refer to ORE">Refer to ORE</option>
-            <option value="Other">Other</option>
-          </select>
-        </div>
-        <button class="btn success" id="completeAppBtn">App Completed</button>
-      </div>
+    <div class="outcome-actions" aria-label="Record application outcome">
+      <button class="btn success" type="button" data-outcome="Approve">Approve</button>
+      <button class="btn danger" type="button" data-outcome="Decline">Decline</button>
+      <button class="btn" type="button" data-outcome="Resub">Resub</button>
+      <button class="btn warning" type="button" data-outcome="ORE">ORE</button>
+      <button class="btn" type="button" data-outcome="Other">Other</button>
     </div>
 
     <section class="stack">
@@ -844,13 +842,6 @@ dialog::backdrop {
         </label>
       </section>
       <p class="footer-note">Toasts only appear while this page is open. Sound may also require a user interaction before the browser allows it.</p>
-    </form>
-  </dialog>  <dialog id="detailsDialog">
-    <form method="dialog" class="modal-inner stack">
-      <div class="modal-header"><h2>Plan Details</h2><button class="btn small" value="close">Close</button></div>
-      <section class="panel-soft stack"><h3>Live Queue Tracker</h3><div id="liveTrackerDetails" class="subtle">Queue changes will appear here.</div></section>
-      <section class="panel-soft stack"><h3>Current Plan Segment</h3><div id="currentSegmentDetails" class="subtle">No matching segment yet.</div></section>
-      <section><h3>Queue Breakdown</h3><div class="table-like" id="breakdownList"></div></section>
     </form>
   </dialog>  <dialog id="newDayDialog">
     <form method="dialog" class="modal-inner stack">
@@ -912,7 +903,7 @@ dialog::backdrop {
         <h2>Today’s Queue Plan</h2>
         <button class="btn small" value="close">Close</button>
       </div>
-      <p class="subtle">The default shift is 11:00–19:30, beginning with a 15-minute team briefing. A segment runs until the next one begins. Live active queue changes are tracked separately and do not edit the schedule.</p>
+      <p class="subtle">The default shift is 11:00–19:30, beginning with a 15-minute team briefing. A segment runs until the next one begins. Outcomes are recorded against the productive queue active in the schedule.</p>
       <div class="schedule-toolbar">
         <div class="field">
           <label for="shiftStart">Shift starts</label>
@@ -931,14 +922,6 @@ dialog::backdrop {
         <div class="schedule-head"><span>#</span><span>Queue / activity</span><span>Starts</span><span>Ends</span><span>Duration</span><span></span></div>
         <div id="segmentList" class="stack"></div>
       </div>
-    </form>
-  </dialog>  <dialog id="archiveDialog">
-    <form method="dialog" class="modal-inner stack">
-      <div class="modal-header">
-        <h2>Archived Days</h2>
-        <button class="btn small" value="close">Close</button>
-      </div>
-      <div class="log-list single-output" id="archiveHistory"></div>
     </form>
   </dialog>  <script>
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
@@ -966,12 +949,8 @@ dialog::backdrop {
       shiftEnd: DEFAULT_SHIFT_END,
       segments: [{ id: crypto.randomUUID(), queueId: TEAM_BRIEFING_ID, start: DEFAULT_SHIFT_START }],
       completions: [],
-      archive: [],
       activityLog: [],
       startingSnapshot: null,
-      activeQueueId: null,
-      activeQueueStartedAt: null,
-      queueSwitchLog: [],
       timerStartedAt: null,
       timerQueueId: null,
       notificationsEnabled: false,
@@ -1003,7 +982,6 @@ dialog::backdrop {
       finalRoundDetail: document.getElementById("finalRoundDetail"),
       dismissFinalRoundBtn: document.getElementById("dismissFinalRoundBtn"),
       planBtn: document.getElementById("planBtn"),
-      archiveBtn: document.getElementById("archiveBtn"),
       snapshotBtn: document.getElementById("snapshotBtn"),
       endDayBtn: document.getElementById("endDayBtn"),
       exportCsvBtn: document.getElementById("exportCsvBtn"),
@@ -1011,12 +989,9 @@ dialog::backdrop {
       settingsDialog: document.getElementById("settingsDialog"),
       planDialog: document.getElementById("planDialog"),
       planForm: document.getElementById("planForm"),
-      archiveDialog: document.getElementById("archiveDialog"),
       reviewDialog: document.getElementById("reviewDialog"),
       completionDialog: document.getElementById("completionDialog"),
       completedAppsBtn: document.getElementById("completedAppsBtn"),
-      detailsBtn: document.getElementById("detailsBtn"),
-      detailsDialog: document.getElementById("detailsDialog"),
       newDayDialog: document.getElementById("newDayDialog"),
       newDayExportBtn: document.getElementById("newDayExportBtn"),
       newDayResetBtn: document.getElementById("newDayResetBtn"),
@@ -1031,22 +1006,13 @@ dialog::backdrop {
       scheduleSummary: document.getElementById("scheduleSummary"),
       addSegmentBtn: document.getElementById("addSegmentBtn"),
       segmentList: document.getElementById("segmentList"),
-      trackerStartedAt: document.getElementById("trackerStartedAt"),
       timerCaption: document.getElementById("timerCaption"),
       timerDisplay: document.getElementById("timerDisplay"),
       timerEtc: document.getElementById("timerEtc"),
       timerTarget: document.getElementById("timerTarget"),
       timerProgress: document.getElementById("timerProgress"),
-      completionQueue: document.getElementById("completionQueue"),
-      completionUid: document.getElementById("completionUid"),
-      completionOutcome: document.getElementById("completionOutcome"),
-      completeAppBtn: document.getElementById("completeAppBtn"),
       completedCount: document.getElementById("completedCount"),
-      currentSegmentDetails: document.getElementById("currentSegmentDetails"),
-      liveTrackerDetails: document.getElementById("liveTrackerDetails"),
-      breakdownList: document.getElementById("breakdownList"),
       completionHistory: document.getElementById("completionHistory"),
-      archiveHistory: document.getElementById("archiveHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
       expectedAppsTotal: document.getElementById("expectedAppsTotal"),
@@ -1069,6 +1035,10 @@ dialog::backdrop {
         migrated.segments = migrated.segments.map(({ end, ...segment }) => segment);
         delete migrated.selectedSegmentId;
         delete migrated.timeBankSeconds;
+        delete migrated.archive;
+        delete migrated.activeQueueId;
+        delete migrated.activeQueueStartedAt;
+        delete migrated.queueSwitchLog;
         return migrated;
       } catch {
         return structuredClone(defaultState);
@@ -1221,52 +1191,6 @@ dialog::backdrop {
       }) || null;
     }
 
-    function getDefaultActiveQueueId() {
-      const plannedSegment = getPlannedSegmentAtNow();
-      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
-      return isProductiveQueue(plannedQueue) ? plannedQueue.id : null;
-    }
-
-    function getActiveQueue() {
-      const manualQueue = state.activeQueueId ? getQueue(state.activeQueueId) : null;
-      if (manualQueue) return manualQueue;
-      const plannedSegment = getPlannedSegmentAtNow();
-      return plannedSegment ? getQueue(plannedSegment.queueId) || null : null;
-    }
-
-    function getQueueSwitchRows() {
-      return Array.isArray(state.queueSwitchLog) ? state.queueSwitchLog : [];
-    }
-
-    function setActiveQueue(queueId, source = "manual") {
-      const queue = getQueue(queueId);
-      if (!queue) return;
-      if (state.activeQueueId === queueId) return;
-
-      const plannedSegment = getPlannedSegmentAtNow();
-      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
-      const previousQueue = getActiveQueue();
-      const changedAt = nowIso();
-
-      state.activeQueueId = queueId;
-      state.activeQueueStartedAt = changedAt;
-      const adherenceText = plannedQueue
-        ? (plannedQueue.id === queueId ? "matches the original plan" : `planned ${plannedQueue.name}`)
-        : "outside planned time";
-
-      state.queueSwitchLog.unshift({
-        id: crypto.randomUUID(),
-        at: changedAt,
-        queueId,
-        previousQueueId: previousQueue?.id || null,
-        plannedQueueId: plannedQueue?.id || null,
-        plannedSegmentId: plannedSegment?.id || null,
-        source
-      });
-      state.queueSwitchLog = state.queueSwitchLog.slice(0, 120);
-      logActivity("tracker", `Switched live queue to ${queue.name} (${adherenceText}).`);
-    }
-
     function getSegmentMinutes(segment, segments = state.segments, shiftEnd = state.shiftEnd) {
       const { start, end } = getSegmentBounds(segment, segments, shiftEnd);
       return Math.max(0, end - start);
@@ -1311,27 +1235,6 @@ dialog::backdrop {
         return sum;
       }, 0);
       return minutes / 60;
-    }
-
-    function renderQueueOptions() {
-      const productiveQueues = state.queues.filter(queue => isProductiveQueue(queue));
-      const nonProductiveQueues = state.queues.filter(queue => !isProductiveQueue(queue));
-      const renderOptions = queues => queues
-        .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)}</option>`)
-        .join("");
-
-      els.completionQueue.innerHTML = `
-        <optgroup label="Productive queues">${renderOptions(productiveQueues)}</optgroup>
-        <optgroup label="Non-productive / off queue">${renderOptions(nonProductiveQueues)}</optgroup>
-      `;
-
-      const activeQueue = getActiveQueue();
-      const fallbackQueue = productiveQueues[0] || nonProductiveQueues[0];
-      if (activeQueue) {
-        els.completionQueue.value = activeQueue.id;
-      } else if (fallbackQueue) {
-        els.completionQueue.value = fallbackQueue.id;
-      }
     }
 
     function renderQueues() {
@@ -1382,32 +1285,15 @@ dialog::backdrop {
           const queue = getQueue(app.queueId);
           return `
             <article class="log-card">
-              <div><strong>${escapeHtml(app.uid || "(no uid)")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
-              <div class="log-meta">Outcome: ${escapeHtml(app.outcome || "Unspecified")}</div>
+              <div><strong>${escapeHtml(app.outcome || "Unspecified")}</strong> · ${escapeHtml(queue?.name || "Missing queue")}</div>
               <div class="log-meta log-meta-inline">
                 <span>Completed ${formatClock(app.at)}</span>
-                ${app.activeQueueStartedAt ? `<span>·</span><span>Queue selected ${formatClock(app.activeQueueStartedAt)}</span>` : ""}
               </div>
               <div class="row row-end"><button class="btn small danger" data-delete-completion="${app.id}">Delete</button></div>
             </article>
           `;
         }).join("")
         : `<p class="subtle">No completed apps yet.</p>`;
-    }
-
-    function renderArchiveHistory() {
-      els.archiveHistory.innerHTML = state.archive?.length
-        ? state.archive.slice().reverse().map(day => `
-          <article class="log-card">
-            <div><strong>${escapeHtml(new Date(day.archivedAt).toLocaleDateString())}</strong> · ${escapeHtml(day.label)}</div>
-            <div class="log-meta log-meta-inline">
-              <span>${day.completions.length} completed</span><span>·</span>
-              <span>${day.segments.length} segments</span><span>·</span>
-              <span>${day.queues.length} queues</span>
-            </div>
-          </article>
-        `).join("")
-        : `<p class="subtle">No archived days yet.</p>`;
     }
 
     function renderStats() {
@@ -1446,74 +1332,6 @@ dialog::backdrop {
           : "";
         return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${label ? `<span class="timeline-label">${label}</span>` : ""}${adjustmentButton}</div>` : "";
       }).join("");
-    }
-
-    function renderBreakdown() {
-      const byQueue = state.queues.map(queue => {
-        const queueSegments = state.segments.filter(segment => segment.queueId === queue.id);
-        const expected = queueSegments.reduce((sum, segment) => sum + getSegmentExpectedWholeApps(segment), 0);
-        const plannedHours = queueSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0) / 60;
-        const completed = state.completions.filter(app => app.queueId === queue.id).length;
-        const switches = getQueueSwitchRows().filter(entry => entry.queueId === queue.id).length;
-        return { queue, expected, plannedHours, completed, switches };
-      }).filter(row => row.expected > 0 || row.completed > 0 || row.plannedHours > 0 || row.switches > 0);
-
-      els.breakdownList.innerHTML = byQueue.length
-        ? byQueue.map(row => `
-          <div class="mini-table-row">
-            <strong class="row" style="gap: 8px;"><span class="swatch" style="--queue-color: ${row.queue.color || "#14b8a6"}"></span>${escapeHtml(row.queue.name)}</strong>
-            <span class="subtle">${formatHoursMinutes(row.plannedHours)} planned · ${row.expected.toFixed(1)} expected · ${row.completed} completed</span>
-            <span class="pill">${row.switches} switches</span>
-          </div>
-        `).join("")
-        : `<p class="subtle">No queue history yet.</p>`;
-    }
-
-    function renderLiveTracker() {
-      const activeQueue = getActiveQueue();
-      const plannedSegment = getPlannedSegmentAtNow();
-      const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
-      const trackingStarted = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "from current plan";
-      const adherenceClass = plannedQueue && activeQueue?.id === plannedQueue.id ? "good" : "warn";
-      const recentSwitches = getQueueSwitchRows().slice(0, 5);
-      const switchHtml = recentSwitches.length
-        ? `<div style="margin-top: 10px;"><strong>Recent manual queue changes:</strong><br>${recentSwitches.map(entry => {
-          const queue = getQueue(entry.queueId);
-          const planned = entry.plannedQueueId ? getQueue(entry.plannedQueueId) : null;
-          const adherence = planned ? (planned.id === entry.queueId ? "matched plan" : `planned ${planned.name}`) : "outside plan";
-          return `${formatClock(entry.at)} · ${escapeHtml(queue?.name || "Missing queue")} · ${escapeHtml(adherence)}`;
-        }).join("<br>")}</div>`
-        : `<div style="margin-top: 10px;">No manual queue changes logged yet. Changing the dropdown will start the adherence log without editing today’s plan.</div>`;
-
-      if (!activeQueue) {
-        els.liveTrackerDetails.innerHTML = `No productive live queue selected. Pick one in the Live active queue dropdown to start tracking actual work.${switchHtml}`;
-        return;
-      }
-
-      els.liveTrackerDetails.innerHTML = `
-        <strong>${escapeHtml(activeQueue.name)}</strong> is being worked now.
-        <span class="pill ${adherenceClass}" style="margin-left: 6px;">${plannedQueue?.id === activeQueue.id ? "On plan" : "Off plan"}</span><br>
-        Tracking started ${trackingStarted}. Planned right now: ${escapeHtml(plannedQueue?.name || "No productive queue")}${plannedSegment ? ` (${plannedSegment.start}-${getSegmentEnd(plannedSegment)})` : ""}.<br>
-        Queue changes and app completions are recorded with timestamps for export.
-        ${switchHtml}
-      `;
-    }
-
-    function renderCurrentSegmentDetails() {
-      const segment = getCurrentSegment();
-      if (!segment) {
-        els.currentSegmentDetails.textContent = "No active plan segment right now.";
-        return;
-      }
-
-      const queue = getQueue(segment.queueId);
-      const expectedSegment = getSegmentExpectedWholeApps(segment);
-      const completedInSegment = state.completions.filter(app => app.segmentId === segment.id).length;
-      els.currentSegmentDetails.innerHTML = `
-        <strong>${escapeHtml(queue?.name || "Missing queue")}</strong><br>
-        ${segment.start} to ${getSegmentEnd(segment)} · ${queue?.rate ?? 0} apps/hr · ${expectedSegment} expected in this segment<br>
-        ${completedInSegment} completed while this segment was active.
-      `;
     }
 
     function getScheduleDateAtMinutes(minutes) {
@@ -1650,7 +1468,6 @@ dialog::backdrop {
         els.timerEtc.textContent = "--:--";
         els.timerTarget.textContent = "--:--";
         els.timerProgress.style.width = "0%";
-        els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
         document.title = BASE_TITLE;
         return;
       }
@@ -1666,21 +1483,15 @@ dialog::backdrop {
       const remainingProgress = (remaining / nextSlot.secondsPerApp) * 100;
       els.timerProgress.style.width = `${Math.min(100, Math.max(0, remainingProgress))}%`;
 
-      els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
       document.title = `${timerText} · ${nextSlot.queue.name} - ${BASE_TITLE}`;
     }
 
     function renderAll() {
-      renderQueueOptions();
       renderQueues();
       renderSegments();
       renderCompletionHistory();
-      renderArchiveHistory();
       renderStats();
       renderDayTimeline();
-      renderBreakdown();
-      renderLiveTracker();
-      renderCurrentSegmentDetails();
       renderTimer();
       renderNotificationStatus();
       saveState();
@@ -1722,48 +1533,37 @@ dialog::backdrop {
       if (shouldLog) logActivity("plan", "Sorted queue segments.");
     }
 
-    function completeApp() {
-      const queueId = els.completionQueue.value;
-      const uid = els.completionUid.value.trim();
-      const outcome = els.completionOutcome?.value?.trim() || "";
-      const queue = getQueue(queueId);
-      if (!queue || !isProductiveQueue(queue)) return alert("Choose a productive queue for the completed app.");
-      if (!uid) return alert("Enter a UID for the completed app.");
-      if (!outcome) return alert("Select an outcome before hitting App Complete.");
-
+    function completeApp(outcome) {
       const segment = getCurrentSegment();
-      const currentIso = nowIso();
+      const queue = segment ? getQueue(segment.queueId) : null;
+      if (!queue || !isProductiveQueue(queue)) {
+        return alert("A productive queue must be active in the current plan before recording an outcome.");
+      }
+
       const completion = {
         id: crypto.randomUUID(),
-        at: currentIso,
-        queueId,
-        segmentId: segment?.id || null,
-        uid,
-        outcome,
-        activeQueueStartedAt: state.activeQueueStartedAt || null
+        at: nowIso(),
+        queueId: queue.id,
+        segmentId: segment.id,
+        outcome
       };
       state.completions.push(completion);
-
-      els.completionUid.value = "";
-      if (els.completionOutcome) els.completionOutcome.value = "";
-      logActivity("complete", `Completed app ${uid} (${outcome}) from ${queue.name}.`);
+      logActivity("complete", `Recorded ${outcome} from ${queue.name}.`);
       renderAll();
     }
 
     function exportCompletionsCsv() {
       if (!state.completions.length) return alert("No completion history to export yet.");
-      const lines = ["uid,queue,outcome,recorded_at,queue_selected_at,planned_queue,planned_segment"];
+      const lines = ["queue,outcome,recorded_at,planned_queue,planned_segment"];
 
       for (const app of state.completions) {
         const queue = getQueue(app.queueId);
         const segment = app.segmentId ? state.segments.find(item => item.id === app.segmentId) : null;
         const plannedQueue = segment ? getQueue(segment.queueId) : null;
         const row = [
-          app.uid || "",
           queue?.name || "",
           app.outcome || "",
           app.at,
-          app.activeQueueStartedAt || "",
           plannedQueue?.name || "",
           segment ? `${segment.start}-${getSegmentEnd(segment)}` : ""
         ].map(value => `"${String(value).replaceAll('"', '""')}"`).join(",");
@@ -1814,14 +1614,6 @@ dialog::backdrop {
         }).join("")
         : `<p class="subtle">No current plan segments.</p>`;
 
-      const adherenceHtml = getQueueSwitchRows().length
-        ? getQueueSwitchRows().map(entry => {
-          const queue = getQueue(entry.queueId);
-          const planned = entry.plannedQueueId ? getQueue(entry.plannedQueueId) : null;
-          const status = planned ? (planned.id === entry.queueId ? "On plan" : `Off plan · planned ${planned.name}`) : "Outside productive plan";
-          return `<div class="mini-table-row"><strong>${formatClock(entry.at)} · ${escapeHtml(queue?.name || "Missing queue")}</strong><span>${escapeHtml(status)}</span><span>${escapeHtml(entry.source || "manual")}</span></div>`;
-        }).join("")
-        : `<p class="subtle">No manual queue changes were logged.</p>`;
 
       els.reviewContent.innerHTML = `
         <section class="stats-grid">
@@ -1831,7 +1623,6 @@ dialog::backdrop {
           <article class="stat"><div class="value">${startExpected === null ? "--" : startExpected.toFixed(1)}</div><div class="label">Start expected total</div></article>
         </section>
         <section class="panel"><h3>Start-of-day plan · ${snapshotTime}</h3><div class="table-like">${startSegmentsHtml}</div></section>
-        <section class="panel"><h3>Manual queue adherence log</h3><div class="table-like">${adherenceHtml}</div></section>
         <section class="panel"><h3>Current / end-of-day plan</h3><div class="table-like">${currentSegmentsHtml}</div></section>
       `;
 
@@ -1853,19 +1644,6 @@ dialog::backdrop {
 
     function resetDay(skipConfirmation = false, openSchedule = false) {
       if (!skipConfirmation && !confirm("Reset today’s segments, completions, logs, and snapshot? Queue settings will be kept.")) return;
-      state.archive.push({
-        id: crypto.randomUUID(),
-        archivedAt: nowIso(),
-        label: `Archive ${new Date().toLocaleString()}`,
-        queues: structuredClone(state.queues),
-        segments: structuredClone(state.segments),
-        completions: structuredClone(state.completions),
-        activityLog: structuredClone(state.activityLog),
-        queueSwitchLog: structuredClone(getQueueSwitchRows()),
-        startingSnapshot: structuredClone(state.startingSnapshot),
-        shiftStart: state.shiftStart,
-        shiftEnd: state.shiftEnd
-      });
       const briefingQueue = ensureTeamBriefingQueue();
       state.shiftStart = DEFAULT_SHIFT_START;
       state.shiftEnd = DEFAULT_SHIFT_END;
@@ -1873,9 +1651,6 @@ dialog::backdrop {
       state.completions = [];
       state.activityLog = [];
       state.startingSnapshot = null;
-      state.activeQueueId = null;
-      state.activeQueueStartedAt = null;
-      state.queueSwitchLog = [];
       state.timerStartedAt = null;
       state.timerQueueId = null;
       state.lastNotifiedSlot = null;
@@ -1905,7 +1680,6 @@ dialog::backdrop {
       }
       const editQueueId = event.target.dataset.editQueue;
       const deleteQueueId = event.target.dataset.deleteQueue;
-      const selectSegmentId = event.target.dataset.selectSegment;
       const deleteSegmentId = event.target.dataset.deleteSegment;
       const deleteCompletionId = event.target.dataset.deleteCompletion;
       const adjustSegmentId = event.target.dataset.adjustSegment;
@@ -1945,19 +1719,12 @@ dialog::backdrop {
         renderAll();
       }
 
-      if (selectSegmentId) {
-        const segment = state.segments.find(item => item.id === selectSegmentId);
-        const queue = segment ? getQueue(segment.queueId) : null;
-        if (!queue || !isProductiveQueue(queue)) return alert("Choose a productive queue to track as live work.");
-        setActiveQueue(queue.id, "segment shortcut");
-        renderAll();
-      }
 
       if (deleteCompletionId) {
         const completion = state.completions.find(item => item.id === deleteCompletionId);
         if (!completion) return;
         state.completions = state.completions.filter(item => item.id !== deleteCompletionId);
-        logActivity("complete", `Deleted completion ${completion.uid || completion.id}.`);
+        logActivity("complete", `Deleted ${completion.outcome || "completion"} entry.`);
         renderAll();
       }
       if (deleteSegmentId) {
@@ -1965,6 +1732,11 @@ dialog::backdrop {
         logActivity("plan", "Deleted segment from plan.");
         renderAll();
       }
+    });
+
+    document.querySelector(".outcome-actions").addEventListener("click", event => {
+      const outcome = event.target.dataset.outcome;
+      if (outcome) completeApp(outcome);
     });
 
     els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
@@ -1990,7 +1762,6 @@ dialog::backdrop {
     });
     els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
     els.planBtn.addEventListener("click", () => els.planDialog.showModal());
-    els.archiveBtn.addEventListener("click", () => els.archiveDialog.showModal());
     els.addQueueBtn.addEventListener("click", addQueue);
     els.addSegmentBtn.addEventListener("click", addSegment);
     els.segmentList.addEventListener("change", event => {
@@ -2060,19 +1831,13 @@ dialog::backdrop {
     els.planDialog.addEventListener("cancel", event => {
       if (!validateScheduleBeforeClose()) event.preventDefault();
     });
-    els.completeAppBtn.addEventListener("click", completeApp);
-    els.completionQueue.addEventListener("change", () => {
-      setActiveQueue(els.completionQueue.value, "manual");
-      renderAll();
-    });
     els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.endDayBtn.addEventListener("click", showReview);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
-    els.detailsBtn.addEventListener("click", () => els.detailsDialog.showModal());
     els.exportCsvBtn.addEventListener("click", exportCompletionsCsv);
     els.resetBtn.addEventListener("click", () => resetDay());
     els.newDayExportBtn.addEventListener("click", () => {
-      if (state.completions.length || getQueueSwitchRows().length) exportCompletionsCsv();
+      if (state.completions.length) exportCompletionsCsv();
       els.newDayDialog.close();
       resetDay(true, true);
     });
@@ -2088,8 +1853,6 @@ dialog::backdrop {
     });
 
 
-    els.completionUid.value = "";
-    if (els.completionOutcome) els.completionOutcome.value = "";
     renderAll();
     checkForNewDay();
     setInterval(() => { renderTimer(); checkDueNotifications(); }, 1000);
