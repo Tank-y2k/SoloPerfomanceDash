@@ -467,7 +467,7 @@ input:focus, select:focus, textarea:focus {
 
 .day-timeline {
   display: flex;
-  height: 38px;
+  height: 46px;
   overflow: hidden;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -493,6 +493,34 @@ input:focus, select:focus, textarea:focus {
   line-height: 1;
   text-shadow: 0 1px 3px rgba(0,0,0,.8);
   white-space: nowrap;
+}
+
+.timeline-adjust {
+  flex: 0 0 26px;
+  width: 26px;
+  height: 26px;
+  margin-right: 5px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, .55);
+  border-radius: 999px;
+  background: rgba(10, 10, 12, .62);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
+}
+
+.timeline-adjust:hover,
+.timeline-adjust:focus-visible {
+  background: rgba(10, 10, 12, .85);
+  outline: 2px solid #fff;
+  outline-offset: 1px;
+}
+
+.timeline-adjust.restore {
+  border-color: var(--success);
+  color: var(--success);
 }
 
 .overview-heading {
@@ -1249,16 +1277,20 @@ dialog::backdrop {
     }
 
     // This is the single source of truth for every segment target. A fractional
-    // app cannot be completed, so first round the segment total up and only then
-    // derive its cadence. Timer readouts, bars, reminders and target totals all
-    // consume this same plan.
+    // app cannot be completed, so first round the segment total up, apply the
+    // optional one-app manual reduction, and only then derive its cadence. Timer
+    // readouts, bars, reminders and target totals all consume this same plan.
     function getSegmentTargetPlan(segment, segments = state.segments, queues = state.queues, shiftEnd = state.shiftEnd) {
       const queue = getQueue(segment.queueId, queues);
       const durationSeconds = getSegmentMinutes(segment, segments, shiftEnd) * 60;
       const rawExpectedApps = queue ? (durationSeconds / 3600) * Number(queue.rate || 0) : 0;
-      const expectedApps = rawExpectedApps > 0 ? Math.ceil(rawExpectedApps) : 0;
+      const roundedExpectedApps = rawExpectedApps > 0 ? Math.ceil(rawExpectedApps) : 0;
+      const targetAdjustment = segment.targetAdjustment === -1 ? -1 : 0;
+      const expectedApps = Math.max(0, roundedExpectedApps + targetAdjustment);
       return {
         rawExpectedApps,
+        roundedExpectedApps,
+        targetAdjustment,
         expectedApps,
         durationSeconds,
         secondsPerApp: expectedApps > 0 ? durationSeconds / expectedApps : 0
@@ -1405,13 +1437,18 @@ dialog::backdrop {
       els.dayTimeline.innerHTML = getSortedSegments().map(segment => {
         const queue = getQueue(segment.queueId);
         const segmentMinutes = getSegmentMinutes(segment);
-        const expected = getSegmentExpectedWholeApps(segment);
+        const target = getSegmentTargetPlan(segment);
+        const expected = target.expectedApps;
         const completed = state.completions.filter(app => app.segmentId === segment.id).length;
         const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No expected apps";
         const completedText = `${completed} completed`;
-        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${completedText} / ${expectedText}`;
+        const adjustmentText = target.targetAdjustment === -1 ? " · manually reduced by 1" : "";
+        const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${completedText} / ${expectedText}${adjustmentText}`;
         const label = expected > 0 ? `${completed}/${expected}` : (completed > 0 ? `${completed}` : "");
-        return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${label ? `<span class="timeline-label">${label}</span>` : ""}</div>` : "";
+        const adjustmentButton = target.roundedExpectedApps > 0
+          ? `<button class="timeline-adjust ${target.targetAdjustment === -1 ? "restore" : ""}" type="button" data-adjust-segment="${segment.id}" aria-label="${target.targetAdjustment === -1 ? "Restore one app to" : "Reduce by one app for"} ${escapeHtml(queue?.name || "this segment")}, ${segment.start} to ${getSegmentEnd(segment)}" title="${target.targetAdjustment === -1 ? "Restore one app" : "Reduce requirement by one app"}">${target.targetAdjustment === -1 ? "+" : "−"}</button>`
+          : "";
+        return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${label ? `<span class="timeline-label">${label}</span>` : ""}${adjustmentButton}</div>` : "";
       }).join("");
     }
 
@@ -1911,6 +1948,17 @@ dialog::backdrop {
       const selectSegmentId = event.target.dataset.selectSegment;
       const deleteSegmentId = event.target.dataset.deleteSegment;
       const deleteCompletionId = event.target.dataset.deleteCompletion;
+      const adjustSegmentId = event.target.dataset.adjustSegment;
+
+      if (adjustSegmentId) {
+        const segment = state.segments.find(item => item.id === adjustSegmentId);
+        if (!segment) return;
+        const wasReduced = segment.targetAdjustment === -1;
+        segment.targetAdjustment = wasReduced ? 0 : -1;
+        const queue = getQueue(segment.queueId);
+        logActivity("plan", `${wasReduced ? "Restored" : "Reduced"} the ${queue?.name || "queue"} requirement for ${segment.start}-${getSegmentEnd(segment)} by one app.`);
+        renderAll();
+      }
 
       if (editQueueId) {
         const queue = getQueue(editQueueId);
