@@ -227,7 +227,6 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: -.07em;
   font-variant-numeric: tabular-nums;
 }
-.timer-display.overdue { color: var(--danger); }
 .timer-progress { height: 7px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
 .timer-progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .3s linear; }
 
@@ -1166,10 +1165,10 @@ dialog::backdrop {
     }
 
     function formatDuration(secondsValue) {
-      const seconds = Math.ceil(Math.abs(secondsValue));
+      const seconds = Math.ceil(Math.max(0, secondsValue));
       const minutes = String(Math.floor(seconds / 60)).padStart(2, "0");
       const remainder = String(seconds % 60).padStart(2, "0");
-      return `${secondsValue < 0 ? "-" : ""}${minutes}:${remainder}`;
+      return `${minutes}:${remainder}`;
     }
 
     function formatClock(iso) {
@@ -1689,7 +1688,6 @@ dialog::backdrop {
           : (isProductiveQueue(plannedQueue) ? "Segment target complete" : "Non-productive activity");
         els.timerEtc.textContent = "--:--";
         els.timerTarget.textContent = "--:--";
-        els.timerDisplay.classList.remove("overdue");
         els.timerProgress.style.width = "0%";
         els.trackerStartedAt.textContent = state.activeQueueStartedAt ? formatClock(state.activeQueueStartedAt) : "Current plan";
         document.title = BASE_TITLE;
@@ -1702,7 +1700,6 @@ dialog::backdrop {
       els.timerCaption.textContent = `Remaining · ${nextSlot.queue.name}`;
       els.timerEtc.textContent = formatClock(nextSlot.at.toISOString());
       els.timerTarget.textContent = formatDuration(nextSlot.secondsPerApp);
-      els.timerDisplay.classList.remove("overdue");
       // Keep the bar in the same countdown direction as the displayed time:
       // full at the start of a target window and empty when the target is due.
       const remainingProgress = (remaining / nextSlot.secondsPerApp) * 100;

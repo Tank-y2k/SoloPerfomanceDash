@@ -56,7 +56,7 @@ For each productive schedule segment, the dashboard calculates the raw target as
 (segment duration in seconds / 3600) × queue apps-per-hour rate
 ```
 
-A positive raw target is rounded **up** to the next whole application. A user can reduce that rounded segment target by one (never below zero) from the day timeline. Target slots are distributed evenly through the segment. The timer counts down to the next slot, shows its estimated completion time (ETC), and marks an overdue target when appropriate.
+A positive raw target is rounded **up** to the next whole application. A user can reduce that rounded segment target by one (never below zero) from the day timeline. Target slots are distributed evenly through the segment. Like a runner’s or drummer’s pacing track, the timer continuously counts to the next scheduled beat and then moves on to the following one; missed beats do not accumulate.
 
 Queues with a rate of zero are non-productive and create no target slots. Built-in **Non-productive**, **Off queue**, and **Team briefing** activities are locked and always have a zero rate.
 
