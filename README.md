@@ -18,7 +18,7 @@ No installation or compilation is required.
 
 ## Typical workflow
 
-1. Open **Menu → Queue Settings** and confirm or update each productive queue's apps-per-hour rate.
+1. Open **Menu → Queue Settings** and confirm each productive queue's department and apps-per-hour rate.
 2. Open **Menu → Schedule**, set the shift bounds, and add activities. Each activity lasts until the next activity begins; the final activity ends with the shift.
 3. During a productive scheduled segment, select **Approve**, **Decline**, **Resub**, **ORE**, or **Other** to record its outcome.
 4. Optionally choose **Save Current Plan** near the start of the day so the end-day review can compare the original and current plans.
@@ -43,6 +43,12 @@ For each productive schedule segment, the dashboard calculates the raw target as
 A positive raw target is rounded **up** to the next whole application. A user can reduce that rounded segment target by one (never below zero) from the day timeline. Target slots are distributed evenly through the segment. Like a runner’s or drummer’s pacing track, the timer continuously counts to the next scheduled beat and then moves on to the following one; missed beats do not accumulate.
 
 Queues with a rate of zero are non-productive and create no target slots. Built-in **Non-productive**, **Off queue**, and **Team briefing** activities are locked and always have a zero rate.
+
+The live tracker also reports day and current-segment apps/hour and efficiency. Efficiency compares recorded completions with the unrounded target earned over productive time elapsed so far, so it updates continuously rather than waiting for a whole target slot.
+
+## Departments
+
+Productive queues belong to a department. The built-in departments are **BCA** and **PCA**; existing productive queues migrate to BCA except a queue named **AA**, which migrates to PCA. Zero-rate activities remain unassigned. Departments can be added, renamed, and—when they have no queues—deleted in **Queue Settings**.
 
 ## Notifications
 

@@ -264,8 +264,8 @@ input:focus, select:focus, textarea:focus {
 
 .tracker-facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  max-width: 680px;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  max-width: 980px;
   margin: 16px auto 0;
 }
 
@@ -721,6 +721,9 @@ dialog::backdrop {
   .panel { padding: 12px; }
   .tracker-card { padding: 18px 12px 16px; }
   .timer-display { font-size: clamp(3rem, 15vw, 4.5rem); }
+  .tracker-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tracker-fact { padding: 8px; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .1); }
+  .tracker-fact:first-child, .tracker-fact:nth-child(2) { border-top: 0; }
   .stats-grid, .stats-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
   .stat { padding: 10px 8px; border-radius: 12px; }
   .stat .value { font-size: clamp(.95rem, 4vw, 1.3rem); white-space: nowrap; }
@@ -774,6 +777,11 @@ dialog::backdrop {
       <div class="tracker-facts">
         <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Department</span><span class="tracker-fact-value" id="currentDepartment">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Segment apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
       </div>
       <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
     </div>
@@ -868,6 +876,10 @@ dialog::backdrop {
         <label for="queueRate">Apps per hour</label>
         <input id="queueRate" type="number" min="0" step="0.1" placeholder="e.g. 4" />
       </div>
+      <div class="field">
+        <label for="queueDepartment">Department</label>
+        <select id="queueDepartment"></select>
+      </div>
       <div class="field field-max-120">
         <label for="queueColor">Colour</label>
         <input id="queueColor" type="color" value="#14b8a6" />
@@ -876,6 +888,15 @@ dialog::backdrop {
     </div>
 
     <div class="queue-list" id="queueList"></div>
+    <section class="panel-soft stack">
+      <h3>Departments</h3>
+      <p class="subtle">Departments group productive queues for current and future work types.</p>
+      <div class="row">
+        <div class="field"><label for="departmentName">Department name</label><input id="departmentName" placeholder="e.g. Reviews" /></div>
+        <button class="btn primary" id="addDepartmentBtn" type="button">Add Department</button>
+      </div>
+      <div class="queue-list" id="departmentList"></div>
+    </section>
   </div>
 </form>
 
@@ -929,21 +950,27 @@ dialog::backdrop {
     const OFF_QUEUE_NAME = "Off queue";
     const TEAM_BRIEFING_NAME = "Team briefing";
     const TEAM_BRIEFING_ID = crypto.randomUUID();
+    const BCA_DEPARTMENT_ID = crypto.randomUUID();
+    const PCA_DEPARTMENT_ID = crypto.randomUUID();
     const BASE_TITLE = "Queue Performance Dashboard";
     const DEFAULT_SHIFT_START = "11:00";
     const DEFAULT_SHIFT_END = "19:30";
     const TEAM_BRIEFING_MINUTES = 15;
 
     const defaultState = {
+      departments: [
+        { id: BCA_DEPARTMENT_ID, name: "BCA", locked: true },
+        { id: PCA_DEPARTMENT_ID, name: "PCA", locked: true }
+      ],
       queues: [
         { id: crypto.randomUUID(), name: NON_PRODUCTIVE_NAME, rate: 0, color: "#71717a", locked: true },
         { id: crypto.randomUUID(), name: OFF_QUEUE_NAME, rate: 0, color: "#f59e0b", locked: true },
         { id: TEAM_BRIEFING_ID, name: TEAM_BRIEFING_NAME, rate: 0, color: "#0ea5e9", locked: true },
-        { id: crypto.randomUUID(), name: "Startup", rate: 2.29, color: "#ba3aff" },
-        { id: crypto.randomUUID(), name: "Established", rate: 2.29, color: "#2df24d" },
-        { id: crypto.randomUUID(), name: "Resubmissions", rate: 2.63, color: "#fb2832" },
-        { id: crypto.randomUUID(), name: "Sole Trader", rate: 2.71, color: "#d6fb0b" },
-        { id: crypto.randomUUID(), name: "Sole Trader Resubmissions", rate: 2.75, color: "#f48a0f" }
+        { id: crypto.randomUUID(), name: "Startup", rate: 2.29, color: "#ba3aff", departmentId: BCA_DEPARTMENT_ID },
+        { id: crypto.randomUUID(), name: "Established", rate: 2.29, color: "#2df24d", departmentId: BCA_DEPARTMENT_ID },
+        { id: crypto.randomUUID(), name: "Resubmissions", rate: 2.63, color: "#fb2832", departmentId: BCA_DEPARTMENT_ID },
+        { id: crypto.randomUUID(), name: "Sole Trader", rate: 2.71, color: "#d6fb0b", departmentId: BCA_DEPARTMENT_ID },
+        { id: crypto.randomUUID(), name: "Sole Trader Resubmissions", rate: 2.75, color: "#f48a0f", departmentId: BCA_DEPARTMENT_ID }
       ],
       shiftStart: DEFAULT_SHIFT_START,
       shiftEnd: DEFAULT_SHIFT_END,
@@ -999,8 +1026,12 @@ dialog::backdrop {
       queueName: document.getElementById("queueName"),
       queueRate: document.getElementById("queueRate"),
       queueColor: document.getElementById("queueColor"),
+      queueDepartment: document.getElementById("queueDepartment"),
       addQueueBtn: document.getElementById("addQueueBtn"),
       queueList: document.getElementById("queueList"),
+      departmentName: document.getElementById("departmentName"),
+      addDepartmentBtn: document.getElementById("addDepartmentBtn"),
+      departmentList: document.getElementById("departmentList"),
       shiftStart: document.getElementById("shiftStart"),
       shiftEnd: document.getElementById("shiftEnd"),
       scheduleSummary: document.getElementById("scheduleSummary"),
@@ -1010,6 +1041,11 @@ dialog::backdrop {
       timerDisplay: document.getElementById("timerDisplay"),
       timerEtc: document.getElementById("timerEtc"),
       timerTarget: document.getElementById("timerTarget"),
+      currentDepartment: document.getElementById("currentDepartment"),
+      dayEfficiency: document.getElementById("dayEfficiency"),
+      segmentEfficiency: document.getElementById("segmentEfficiency"),
+      dayAppsPerHour: document.getElementById("dayAppsPerHour"),
+      segmentAppsPerHour: document.getElementById("segmentAppsPerHour"),
       timerProgress: document.getElementById("timerProgress"),
       completedCount: document.getElementById("completedCount"),
       completionHistory: document.getElementById("completionHistory"),
@@ -1026,6 +1062,13 @@ dialog::backdrop {
         if (!raw) return structuredClone(defaultState);
         const parsed = JSON.parse(raw);
         const migrated = { ...structuredClone(defaultState), ...parsed };
+        if (!Array.isArray(parsed.departments)) migrated.departments = structuredClone(defaultState.departments);
+        const bca = migrated.departments.find(department => department.name.toLowerCase() === "bca") || migrated.departments[0];
+        const pca = migrated.departments.find(department => department.name.toLowerCase() === "pca") || bca;
+        migrated.queues = migrated.queues.map(queue => ({
+          ...queue,
+          departmentId: Number(queue.rate || 0) > 0 ? (queue.departmentId || (queue.name.trim().toLowerCase() === "aa" ? pca?.id : bca?.id)) : null
+        }));
         if (!parsed.shiftStart && migrated.segments.length) {
           migrated.shiftStart = migrated.segments.reduce((earliest, segment) => segment.start < earliest ? segment.start : earliest, migrated.segments[0].start);
         }
@@ -1144,6 +1187,10 @@ dialog::backdrop {
       return queues.find(queue => queue.id === id);
     }
 
+    function getDepartment(id) {
+      return state.departments.find(department => department.id === id);
+    }
+
     function isProductiveQueue(queue) {
       return Number(queue?.rate || 0) > 0;
     }
@@ -1237,6 +1284,55 @@ dialog::backdrop {
       return minutes / 60;
     }
 
+    function getElapsedSegmentHours(segment, now = nowMinutes()) {
+      const queue = getQueue(segment.queueId);
+      if (!isProductiveQueue(queue)) return 0;
+      const { start, end } = getSegmentBounds(segment);
+      return Math.max(0, Math.min(now, end) - start) / 60;
+    }
+
+    function getRunningPerformance(segment = null) {
+      const segments = segment ? [segment] : state.segments;
+      const elapsedHours = segments.reduce((sum, item) => sum + getElapsedSegmentHours(item), 0);
+      const expected = segments.reduce((sum, item) => {
+        const queue = getQueue(item.queueId);
+        return sum + getElapsedSegmentHours(item) * Number(queue?.rate || 0);
+      }, 0);
+      const segmentIds = new Set(segments.map(item => item.id));
+      const completed = state.completions.filter(app => segmentIds.has(app.segmentId)).length;
+      return {
+        appsPerHour: elapsedHours > 0 ? completed / elapsedHours : null,
+        efficiency: expected > 0 ? (completed / expected) * 100 : null
+      };
+    }
+
+    function formatMetric(value, suffix = "") {
+      return Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : "--";
+    }
+
+    function renderPerformance() {
+      const segment = getCurrentSegment();
+      const queue = segment ? getQueue(segment.queueId) : null;
+      const day = getRunningPerformance();
+      const current = segment && isProductiveQueue(queue) ? getRunningPerformance(segment) : null;
+      els.currentDepartment.textContent = getDepartment(queue?.departmentId)?.name || "--";
+      els.dayEfficiency.textContent = formatMetric(day.efficiency, "%");
+      els.dayAppsPerHour.textContent = formatMetric(day.appsPerHour);
+      els.segmentEfficiency.textContent = formatMetric(current?.efficiency, "%");
+      els.segmentAppsPerHour.textContent = formatMetric(current?.appsPerHour);
+    }
+
+    function renderDepartments() {
+      els.queueDepartment.innerHTML = `<option value="">No department (non-productive)</option>${state.departments.map(department => `<option value="${department.id}">${escapeHtml(department.name)}</option>`).join("")}`;
+      if (!els.queueDepartment.value) {
+        els.queueDepartment.value = state.departments.find(department => department.name.toLowerCase() === "bca")?.id || state.departments[0]?.id || "";
+      }
+      els.departmentList.innerHTML = state.departments.map(department => {
+        const queueCount = state.queues.filter(queue => queue.departmentId === department.id).length;
+        return `<article class="queue-card"><div class="queue-card-title"><span>${escapeHtml(department.name)}</span><span class="pill">${queueCount} ${queueCount === 1 ? "queue" : "queues"}</span></div><div class="row mt-10"><button class="btn small" data-edit-department="${department.id}">Rename</button>${department.locked ? "" : `<button class="btn small danger" data-delete-department="${department.id}">Delete</button>`}</div></article>`;
+      }).join("");
+    }
+
     function renderQueues() {
       els.queueList.innerHTML = state.queues.map(queue => `
         <article class="queue-card" style="--queue-color: ${queue.color || "#14b8a6"}">
@@ -1244,7 +1340,7 @@ dialog::backdrop {
             <span class="row" style="gap: 8px;"><span class="swatch" style="--queue-color: ${queue.color || "#14b8a6"}"></span>${escapeHtml(queue.name)}</span>
             <span class="pill">${queue.rate} apps/hr</span>
           </div>
-          <div class="queue-meta">${queue.rate > 0 ? `One app every ${Math.round(60 / queue.rate)} minutes.` : "No productivity target. Breaks, lunch, meetings, and other sanctioned voids."}</div>
+          <div class="queue-meta">${queue.rate > 0 ? `${escapeHtml(getDepartment(queue.departmentId)?.name || "Unassigned")} · One app every ${Math.round(60 / queue.rate)} minutes.` : "No department · No productivity target. Breaks, lunch, meetings, and other sanctioned voids."}</div>
           <div class="row mt-10">
             <button class="btn small" data-edit-queue="${queue.id}">Edit</button>
             ${queue.locked ? "" : `<button class="btn small danger" data-delete-queue="${queue.id}">Delete</button>`}
@@ -1453,6 +1549,7 @@ dialog::backdrop {
     }
 
     function renderTimer() {
+      renderPerformance();
       const now = nowDate();
       const plannedSegment = getPlannedSegmentAtNow();
       const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
@@ -1487,6 +1584,7 @@ dialog::backdrop {
     }
 
     function renderAll() {
+      renderDepartments();
       renderQueues();
       renderSegments();
       renderCompletionHistory();
@@ -1501,13 +1599,25 @@ dialog::backdrop {
       const name = els.queueName.value.trim();
       const rate = Number(els.queueRate.value);
       const color = els.queueColor.value || "#14b8a6";
+      const departmentId = els.queueDepartment.value || null;
 
       if (!name || Number.isNaN(rate) || rate < 0) return alert("Enter a queue name and a valid apps-per-hour expectation. Zero is allowed for non-productive queues.");
+      if (rate > 0 && !getDepartment(departmentId)) return alert("Choose a department for every productive queue.");
 
-      state.queues.push({ id: crypto.randomUUID(), name, rate, color });
+      state.queues.push({ id: crypto.randomUUID(), name, rate, color, departmentId: rate > 0 ? departmentId : null });
       els.queueName.value = "";
       els.queueRate.value = "";
       logActivity("settings", `Added queue ${name} at ${rate} apps/hr.`);
+      renderAll();
+    }
+
+    function addDepartment() {
+      const name = els.departmentName.value.trim();
+      if (!name) return alert("Enter a department name.");
+      if (state.departments.some(department => department.name.toLowerCase() === name.toLowerCase())) return alert("A department with that name already exists.");
+      state.departments.push({ id: crypto.randomUUID(), name });
+      els.departmentName.value = "";
+      logActivity("settings", `Added department ${name}.`);
       renderAll();
     }
 
@@ -1683,6 +1793,8 @@ dialog::backdrop {
       const deleteSegmentId = event.target.dataset.deleteSegment;
       const deleteCompletionId = event.target.dataset.deleteCompletion;
       const adjustSegmentId = event.target.dataset.adjustSegment;
+      const editDepartmentId = event.target.dataset.editDepartment;
+      const deleteDepartmentId = event.target.dataset.deleteDepartment;
 
       if (adjustSegmentId) {
         const segment = state.segments.find(item => item.id === adjustSegmentId);
@@ -1701,11 +1813,40 @@ dialog::backdrop {
         if (!name) return;
         const rate = queue.locked ? 0 : Number(prompt("Apps per hour", queue.rate));
         if (Number.isNaN(rate) || rate < 0) return alert("Rate must be zero or a positive number.");
+        let departmentId = null;
+        if (rate > 0) {
+          const currentDepartment = getDepartment(queue.departmentId);
+          const departmentName = prompt(`Department (${state.departments.map(department => department.name).join(", ")})`, currentDepartment?.name || "BCA");
+          const department = state.departments.find(item => item.name.toLowerCase() === departmentName?.trim().toLowerCase());
+          if (!department) return alert("Choose an existing department for every productive queue.");
+          departmentId = department.id;
+        }
         const color = prompt("Queue colour hex code", queue.color || "#14b8a6") || queue.color || "#14b8a6";
         queue.name = name.trim();
         queue.rate = rate;
         queue.color = color;
+        queue.departmentId = departmentId;
         logActivity("settings", `Updated queue ${queue.name} to ${rate} apps/hr.`);
+        renderAll();
+      }
+
+      if (editDepartmentId) {
+        const department = getDepartment(editDepartmentId);
+        if (!department) return;
+        const name = prompt("Department name", department.name)?.trim();
+        if (!name || name === department.name) return;
+        if (state.departments.some(item => item.id !== department.id && item.name.toLowerCase() === name.toLowerCase())) return alert("A department with that name already exists.");
+        department.name = name;
+        logActivity("settings", `Renamed department to ${name}.`);
+        renderAll();
+      }
+
+      if (deleteDepartmentId) {
+        const department = getDepartment(deleteDepartmentId);
+        if (department?.locked) return alert("Built-in departments cannot be deleted.");
+        if (state.queues.some(queue => queue.departmentId === deleteDepartmentId)) return alert("Reassign or delete this department’s queues first.");
+        state.departments = state.departments.filter(item => item.id !== deleteDepartmentId);
+        logActivity("settings", `Deleted department ${department?.name || "department"}.`);
         renderAll();
       }
 
@@ -1763,6 +1904,7 @@ dialog::backdrop {
     els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
     els.planBtn.addEventListener("click", () => els.planDialog.showModal());
     els.addQueueBtn.addEventListener("click", addQueue);
+    els.addDepartmentBtn.addEventListener("click", addDepartment);
     els.addSegmentBtn.addEventListener("click", addSegment);
     els.segmentList.addEventListener("change", event => {
       const segmentId = event.target.dataset.segmentQueue;
