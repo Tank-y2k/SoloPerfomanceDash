@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Help · Queue Performance Dashboard</title>
+  <style>
+    :root { color-scheme: dark; --bg:#101114; --panel:#181a20; --soft:#20232b; --text:#f4f4f5; --muted:#a1a1aa; --border:#2f3340; --accent:#5eead4; --accent2:#14b8a6; --warn:#facc15; --radius:18px; }
+    * { box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+    body { margin:0; font:16px/1.65 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--text); background:radial-gradient(circle at top left,rgba(94,234,212,.08),transparent 28%),var(--bg); }
+    a { color:var(--accent); }
+    a:focus-visible { outline:3px solid var(--accent); outline-offset:3px; border-radius:4px; }
+    .shell { width:min(1180px,calc(100% - 32px)); margin:auto; padding:32px 0 64px; }
+    header { display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:28px; }
+    h1 { margin:0; font-size:clamp(2rem,5vw,3.7rem); line-height:1; letter-spacing:-.05em; }
+    .lede { max-width:760px; color:var(--muted); font-size:1.08rem; }
+    .button { display:inline-flex; padding:10px 16px; border:1px solid var(--accent2); border-radius:999px; background:var(--accent2); color:#042f2e; font-weight:800; text-decoration:none; white-space:nowrap; }
+    .layout { display:grid; grid-template-columns:250px minmax(0,1fr); gap:24px; align-items:start; }
+    nav,.card,.callout { border:1px solid var(--border); background:linear-gradient(180deg,rgba(255,255,255,.025),transparent),var(--panel); border-radius:var(--radius); }
+    nav { position:sticky; top:18px; padding:18px; }
+    nav strong { display:block; margin-bottom:8px; }
+    nav a { display:block; padding:5px 0; color:var(--muted); text-decoration:none; }
+    nav a:hover { color:var(--accent); }
+    main { display:grid; gap:18px; }
+    .card { padding:clamp(20px,4vw,32px); }
+    h2 { margin:0 0 12px; font-size:1.55rem; letter-spacing:-.025em; }
+    h3 { margin:24px 0 8px; font-size:1.05rem; }
+    p,ul,ol { margin-top:8px; }
+    li+li { margin-top:6px; }
+    code { padding:.1em .35em; border-radius:6px; background:var(--soft); color:#ccfbf1; }
+    .callout { padding:14px 16px; border-left:4px solid var(--accent2); background:var(--soft); }
+    .warning { border-left-color:var(--warn); }
+    dl { display:grid; grid-template-columns:minmax(140px,190px) 1fr; gap:10px 18px; margin:0; }
+    dt { font-weight:800; }
+    dd { margin:0; color:var(--muted); }
+    .steps { counter-reset:step; list-style:none; padding:0; }
+    .steps li { counter-increment:step; padding-left:42px; position:relative; }
+    .steps li::before { content:counter(step); position:absolute; left:0; top:0; width:28px; height:28px; display:grid; place-items:center; border-radius:50%; background:var(--accent2); color:#042f2e; font-weight:900; }
+    footer { margin-top:30px; color:var(--muted); text-align:center; }
+    @media (max-width:780px) { header { display:grid; } .layout { grid-template-columns:1fr; } nav { position:static; columns:2; } nav strong { column-span:all; } dl { grid-template-columns:1fr; gap:2px; } dd+dt { margin-top:10px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div><h1>Dashboard help</h1><p class="lede">A practical guide to planning the day, following queue targets, recording applications, configuring settings, and preserving the results.</p></div>
+      <a class="button" href="queue-performance-dashboard.html">Open dashboard</a>
+    </header>
+    <div class="layout">
+      <nav aria-label="Help topics"><strong>On this page</strong><a href="#start">Getting started</a><a href="#screen">Main screen</a><a href="#schedule">Schedule</a><a href="#settings">Queue settings</a><a href="#tracking">Live tracking</a><a href="#completions">Completions</a><a href="#targets">Targets &amp; timer</a><a href="#notifications">Notifications</a><a href="#menu">Other menu features</a><a href="#new-day">Reset &amp; rollover</a><a href="#storage">Storage &amp; privacy</a><a href="#troubleshooting">Troubleshooting</a></nav>
+      <main>
+        <section class="card" id="start"><h2>Getting started</h2><ol class="steps"><li>Check queue names and rates under <strong>Menu → Queue Settings</strong>.</li><li>Build today's plan under <strong>Menu → Schedule</strong>.</li><li>Select the queue you are actually working on from the main screen.</li><li>For every finished application, enter its UID, choose an outcome, and select <strong>App Completed</strong>.</li><li>Export the completion history before resetting if you need an external record.</li></ol><div class="callout"><strong>Recommended:</strong> choose <strong>Save Current Plan</strong> once the initial plan is ready. This gives End Day Review a fixed start-of-day comparison.</div></section>
+
+        <section class="card" id="screen"><h2>Main screen</h2><dl><dt>Pace timer</dt><dd>Time until the next evenly spaced target beat in the current scheduled segment. When a beat passes, the timer moves directly to the next one, keeping the planned rhythm moving.</dd><dt>ETC</dt><dd>The local clock time at which the next target is due.</dd><dt>Target</dt><dd>The next target number and total target for the segment, such as 2 / 5.</dd><dt>Tracking since</dt><dd>When the manually selected live queue began; otherwise the tracker follows the current plan.</dd><dt>Queue / UID / Outcome</dt><dd>The fields used to record a completion. Changing Queue also records a live queue switch.</dd><dt>Day Overview</dt><dd>A timeline of planned segments with completed-versus-expected values, plus productive time, non-productive time, and completion count.</dd></dl></section>
+
+        <section class="card" id="schedule"><h2>Schedule</h2><p>Open <strong>Menu → Schedule</strong>. Set shift start and end, then use <strong>+ Add activity</strong>. Choose a queue/activity and start time for each row.</p><ul><li>A segment runs from its start until the next segment starts. The last segment runs until shift end.</li><li>The default day is 11:00–19:30 with a 15-minute Team briefing.</li><li>Each start must be inside the shift, and two activities cannot share the same start.</li><li>Rows are sorted chronologically. Deleting a row causes the preceding activity to run until the following row.</li><li>Changing the live queue on the main screen does <em>not</em> rewrite the schedule; this separation supports adherence reporting.</li></ul><p>Close the dialog to validate it. Invalid shift bounds, out-of-range starts, or duplicate starts must be corrected first.</p></section>
+
+        <section class="card" id="settings"><h2>Queue settings</h2><p>Open <strong>Menu → Queue Settings</strong> to create, edit, or delete queue definitions.</p><h3>Add a queue</h3><ul><li><strong>Queue name:</strong> the label shown throughout the dashboard.</li><li><strong>Apps per hour:</strong> the expected throughput. Decimal values are accepted. A rate of zero makes the entry non-productive and creates no app targets.</li><li><strong>Colour:</strong> identifies the queue in schedule and timeline displays.</li></ul><h3>Edit and delete</h3><p>Use a queue row's controls to edit its name, rate, or colour. A queue cannot be deleted while today's plan uses it.</p><div class="callout"><strong>Built-in activities:</strong> Non-productive, Off queue, and Team briefing are locked at zero apps/hour. They cannot be renamed or deleted, although their colours can be changed.</div></section>
+
+        <section class="card" id="tracking"><h2>Live queue tracking</h2><p>The plan says what was scheduled; the live selection says what you actually worked. Change the main Queue selector, or use a productive timeline segment's tracking shortcut, when work moves.</p><p>Each explicit change records the time, selected queue, planned queue/segment, and change source. <strong>Menu → Plan Details</strong> shows recent switches and whether they matched the plan. End Day Review includes the adherence history.</p><p>Non-productive queues cannot be selected for completed work. If no manual selection exists, the active queue falls back to the currently planned segment.</p></section>
+
+        <section class="card" id="completions"><h2>Recording completions</h2><ol><li>Choose the productive queue that handled the application.</li><li>Enter a non-empty application UID.</li><li>Select Approve, Resubmit, Decline, Refer to ORE, or Other.</li><li>Select <strong>App Completed</strong>.</li></ol><p>The entry stores its timestamp, chosen queue, current planned segment, and when live tracking of the selected queue began. The UID and outcome fields clear after a successful entry.</p><p>Use <strong>Menu → Completed Apps</strong> to review today's entries and delete mistakes. Deletion changes totals and cannot be undone except through a previously preserved external record.</p></section>
+
+        <section class="card" id="targets"><h2>Targets and timer</h2><p>A productive segment's raw expectation is its hours multiplied by its queue's apps-per-hour rate. Any positive result is rounded up to a whole app. Target due times are spread evenly from segment start to segment end.</p><p>On the Day Overview timeline, the target-adjustment control reduces a segment's rounded requirement by one; selecting it again restores the app. The result never falls below zero. This is stored with the segment and is reflected in the timer, reminders, totals, details, and review.</p><p>The timer shows no active target before/after the shift, during zero-rate activities, or after every slot in the current segment has passed. Near the last scheduled target, a one-time Final App overlay appears for that segment.</p></section>
+
+        <section class="card" id="notifications"><h2>Notification settings</h2><p>Open <strong>Menu → Notifications</strong>.</p><dl><dt>Enable scheduled target reminders</dt><dd>Turns the periodic due-target checks on or off.</dd><dt>Enable browser notifications</dt><dd>Requests native notification permission. Permission may be granted, denied, or unavailable depending on browser and origin.</dd><dt>Send test</dt><dd>Sends an immediate sample using the best available notification mode.</dd><dt>Play a sound</dt><dd>Generates a short reminder tone. Browsers may require a user interaction before audio is allowed.</dd></dl><div class="callout warning"><strong>Keep the tab open.</strong> This static application has no service worker or background scheduler. Native notifications are least reliable from <code>file://</code>; serving the folder from <code>http://localhost</code> is recommended. If native delivery is unavailable, an in-page toast is used.</div></section>
+
+        <section class="card" id="menu"><h2>Other menu features</h2><dl><dt>Archived Days</dt><dd>Lists data copied into browser storage by previous resets. Archives are convenient history, not an external backup.</dd><dt>Save Current Plan</dt><dd>Deep-copies queues, segments, shift, and expected total as the start-of-day baseline. Saving again replaces the earlier baseline.</dd><dt>End Day Review</dt><dd>Compares completions with the current expected total, shows variance and start expected total, and lists the start plan, queue adherence, and current plan.</dd><dt>Plan Details</dt><dd>Shows the live tracker, current segment progress, and queue-by-queue planned hours, expectations, completions, and switches.</dd><dt>Export CSV</dt><dd>Downloads one row per current completion. It does not export all archive or activity-log data.</dd><dt>Reset Day</dt><dd>Archives the current day and clears today's operational records while retaining queue settings and preferences.</dd></dl></section>
+
+        <section class="card" id="new-day"><h2>Reset and date rollover</h2><p><strong>Reset Day</strong> asks for confirmation. It archives the current queues, plan, completions, activity log, switches, snapshot, and shift. It then restores the default shift and Team briefing and clears live day data. Queue definitions, notification preferences, and older archives remain.</p><p>If the page remains open across a local calendar-date change, a dialog offers:</p><ul><li><strong>Export CSV &amp; reset:</strong> export when completions/switches exist, archive/reset, and open the new schedule.</li><li><strong>Reset without export:</strong> archive/reset immediately and open the schedule.</li><li><strong>Skip for now:</strong> keep the existing data, mark it as today's state, and open the schedule.</li></ul><div class="callout warning"><strong>Before resetting:</strong> export the CSV if an external completion record is required. Browser archives can disappear when site data is cleared.</div></section>
+
+        <section class="card" id="storage"><h2>Storage, privacy, and exports</h2><p>State is stored as JSON in browser <code>localStorage</code> under <code>queuePerformanceDashboard.v2</code>. Nothing is uploaded by this app. Storage belongs to the current browser profile and origin, so local-file, localhost, different ports, different browsers, and private windows may not share data.</p><p>The CSV contains UID, selected queue, outcome, recorded time, live-queue selection time, planned queue, and planned segment. Treat UIDs and exports according to your organisation's data-handling rules. See the <a href="DATA_DICTIONARY.md">data dictionary</a> for the complete schema and calculations.</p></section>
+
+        <section class="card" id="troubleshooting"><h2>Troubleshooting</h2><h3>No pace timer or target</h3><p>Check that local time is within a scheduled productive segment, its queue rate is above zero, and a future target slot remains.</p><h3>Notifications are missing</h3><p>Enable reminders, keep the tab open, try Send test, allow browser permission, and serve from localhost. Check operating-system notification settings and browser audio restrictions.</p><h3>Schedule will not close</h3><p>Ensure shift end follows shift start, every activity starts inside the shift, and no two rows use the same time.</p><h3>Cannot delete a queue</h3><p>Built-ins are permanent. For another queue, first change or delete every current schedule segment that references it.</p><h3>Previous data is missing</h3><p>Return to the same browser profile and URL/origin. Check whether site data was cleared or private browsing was used. The application has no cloud recovery.</p><h3>CSV will not export</h3><p>There must be at least one current completion. Browser download policies can also block automatic downloads.</p></section>
+      </main>
+    </div>
+    <footer>Queue Performance Dashboard · <a href="queue-performance-dashboard.html">Return to dashboard</a></footer>
+  </div>
+</body>
+</html>
