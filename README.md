@@ -26,6 +26,8 @@ No installation or compilation is required.
 
 See the [complete user guide](help.html) for every feature and setting.
 
+Forgot to record an application at the right moment? Open **Menu → Completed Apps** and edit its completion time. The dashboard selects the productive queue scheduled at the corrected time automatically, and the adjacent task/queue dropdown provides a manual override.
+
 ## Data and privacy
 
 The dashboard stores its state as JSON in browser `localStorage` under `queuePerformanceDashboard.v2`. Data stays in the browser profile and origin where it was entered; the application does not transmit it. A `file://` copy and a localhost-served copy may use different browser storage areas, as can different browsers or browser profiles.

@@ -115,6 +115,8 @@ Segments must start within the shift and cannot have duplicate start times. Thei
 | Segment queue | Existing queue ID | Assigns work/activity to the segment. |
 | Segment start | `HH:MM` within shift | Defines this segment's start and the prior segment's end. |
 | Completion queue | Productive queue ID | Taken from the active planned segment. |
+| Edited completion time | Local `HH:MM` | Replaces the completion timestamp's local time and automatically resolves its productive scheduled segment and queue. |
+| Edited completion queue | Productive queue ID | Overrides the recorded queue; the scheduled segment is retained only when it uses that queue. |
 | Outcome | One of `Approve`, `Decline`, `Resub`, `ORE`, or `Other` | Button-selected classification exported with completion history. |
 | Scheduled reminders | Boolean | Enables due-slot reminder checks while open. |
 | Notification sound | Boolean | Enables generated audio alongside reminders. |
@@ -152,8 +154,8 @@ Segments must start within the shift and cannot have duplicate start times. Thei
 | Completed in segment | Count of completions whose `segmentId` equals that segment ID. |
 | Elapsed productive hours | Productive duration elapsed so far, capped at segment bounds; calculated for the day or current segment. |
 | Running expected apps | Sum of elapsed productive hours multiplied by each relevant queue rate. |
-| Running apps/hour | Relevant completions divided by elapsed productive hours. |
-| Running efficiency | Relevant completions divided by running expected apps, multiplied by 100. |
+| Running apps/hour | Relevant completions at or before the current time divided by elapsed productive hours. Day performance includes manually reassigned entries without a segment. |
+| Running efficiency | Relevant completions at or before the current time divided by running expected apps, multiplied by 100. |
 | Current variance | Total completions minus current expected full-day total. |
 | Timer ETC | Local clock time of the next scheduled target slot. |
 | Timer Target | Current target ordinal and segment total, e.g. `2 / 5`. |
