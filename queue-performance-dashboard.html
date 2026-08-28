@@ -264,7 +264,7 @@ input:focus, select:focus, textarea:focus {
 
 .tracker-facts {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(8, minmax(0, 1fr));
   max-width: 980px;
   margin: 16px auto 0;
 }
@@ -562,6 +562,30 @@ input:focus, select:focus, textarea:focus {
   border-color: rgba(94, 234, 212, .25);
 }
 
+.upcoming-apps {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .02);
+}
+
+.upcoming-app {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, .06);
+}
+
+.upcoming-app:last-child { border-bottom: 0; }
+.upcoming-app-number { color: var(--muted); font-size: .75rem; font-weight: 800; }
+.upcoming-app-queue { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+.upcoming-app-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 800; }
+.upcoming-empty { padding: 16px; text-align: center; }
+
 .table-like { display: grid; gap: 8px; }
 
 .mini-table-row {
@@ -791,6 +815,7 @@ dialog::backdrop {
         <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
       </div>
       <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
     </div>
@@ -809,20 +834,8 @@ dialog::backdrop {
         <span class="pill expected-total" id="expectedAppsTotal" aria-label="0 apps expected">0</span>
       </div>
       <div class="day-timeline" id="dayTimeline"></div>
-      <div class="stats-grid four">
-        <article class="stat">
-          <div class="value" id="productiveHours">0h 0m</div>
-          <div class="label">Productive planned time</div>
-        </article>
-        <article class="stat">
-          <div class="value" id="nonProductiveHours">0h 0m</div>
-          <div class="label">Non-productive planned time</div>
-        </article>
-        <article class="stat">
-          <div class="value" id="completedCount">0</div>
-          <div class="label">Apps completed</div>
-        </article>
-      </div>
+      <h3>Next 10 apps</h3>
+      <div class="upcoming-apps" id="upcomingApps" aria-live="polite"></div>
     </section>
 
   </section>
@@ -1055,14 +1068,13 @@ dialog::backdrop {
       segmentEfficiency: document.getElementById("segmentEfficiency"),
       dayAppsPerHour: document.getElementById("dayAppsPerHour"),
       segmentAppsPerHour: document.getElementById("segmentAppsPerHour"),
+      segmentCompleted: document.getElementById("segmentCompleted"),
       timerProgress: document.getElementById("timerProgress"),
-      completedCount: document.getElementById("completedCount"),
       completionHistory: document.getElementById("completionHistory"),
       reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
       expectedAppsTotal: document.getElementById("expectedAppsTotal"),
-      productiveHours: document.getElementById("productiveHours"),
-      nonProductiveHours: document.getElementById("nonProductiveHours")
+      upcomingApps: document.getElementById("upcomingApps")
     };
 
     function loadState() {
@@ -1337,6 +1349,9 @@ dialog::backdrop {
       els.dayAppsPerHour.textContent = formatMetric(day.appsPerHour);
       els.segmentEfficiency.textContent = formatMetric(current?.efficiency, "%");
       els.segmentAppsPerHour.textContent = formatMetric(current?.appsPerHour);
+      const segmentCompleted = segment ? state.completions.filter(app => app.segmentId === segment.id).length : 0;
+      const segmentTarget = segment && isProductiveQueue(queue) ? getSegmentExpectedWholeApps(segment) : 0;
+      els.segmentCompleted.textContent = segment && isProductiveQueue(queue) ? `${segmentCompleted}/${segmentTarget}` : "--";
     }
 
     function renderDepartments() {
@@ -1421,12 +1436,6 @@ dialog::backdrop {
         : `<p class="subtle">No completed apps yet.</p>`;
     }
 
-    function renderStats() {
-      els.completedCount.textContent = state.completions.length;
-      els.productiveHours.textContent = formatHoursMinutes(getPlannedHours(true));
-      els.nonProductiveHours.textContent = formatHoursMinutes(getPlannedHours(false));
-    }
-
     function renderDayTimeline() {
       const roundedExpectedTotal = state.segments.reduce((sum, segment) => sum + getSegmentExpectedWholeApps(segment), 0);
       els.expectedAppsTotal.textContent = roundedExpectedTotal;
@@ -1451,11 +1460,10 @@ dialog::backdrop {
         const completedText = `${completed} completed`;
         const adjustmentText = target.targetAdjustment === -1 ? " · manually reduced by 1" : "";
         const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${completedText} / ${expectedText}${adjustmentText}`;
-        const label = expected > 0 ? `${completed}/${expected}` : (completed > 0 ? `${completed}` : "");
         const adjustmentButton = target.roundedExpectedApps > 0
           ? `<button class="timeline-adjust ${target.targetAdjustment === -1 ? "restore" : ""}" type="button" data-adjust-segment="${segment.id}" aria-label="${target.targetAdjustment === -1 ? "Restore one app to" : "Reduce by one app for"} ${escapeHtml(queue?.name || "this segment")}, ${segment.start} to ${getSegmentEnd(segment)}" title="${target.targetAdjustment === -1 ? "Restore one app" : "Reduce requirement by one app"}">${target.targetAdjustment === -1 ? "+" : "−"}</button>`
           : "";
-        return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${label ? `<span class="timeline-label">${label}</span>` : ""}${adjustmentButton}</div>` : "";
+        return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${adjustmentButton}</div>` : "";
       }).join("");
     }
 
@@ -1499,6 +1507,23 @@ dialog::backdrop {
         }
       }
       return slots;
+    }
+
+    function renderUpcomingApps() {
+      const now = nowDate();
+      const upcoming = getScheduledCompletionSlots()
+        .filter(slot => slot.at.getTime() > now.getTime())
+        .slice(0, 10);
+
+      els.upcomingApps.innerHTML = upcoming.length
+        ? upcoming.map((slot, index) => `
+          <div class="upcoming-app">
+            <span class="upcoming-app-number">${index + 1}</span>
+            <span class="upcoming-app-queue" title="${escapeHtml(slot.queue.name)}">${escapeHtml(slot.queue.name)}</span>
+            <time class="upcoming-app-time" datetime="${slot.at.toISOString()}">${formatClock(slot.at.toISOString())}</time>
+          </div>
+        `).join("")
+        : `<div class="upcoming-empty subtle">No more apps are scheduled today.</div>`;
     }
 
     let toastTimeout;
@@ -1617,8 +1642,8 @@ dialog::backdrop {
       renderQueues();
       renderSegments();
       renderCompletionHistory();
-      renderStats();
       renderDayTimeline();
+      renderUpcomingApps();
       renderTimer();
       renderNotificationStatus();
       saveState();
@@ -2065,7 +2090,7 @@ dialog::backdrop {
 
     renderAll();
     checkForNewDay();
-    setInterval(() => { renderTimer(); checkDueNotifications(); }, 1000);
+    setInterval(() => { renderTimer(); renderUpcomingApps(); checkDueNotifications(); }, 1000);
     setInterval(checkForNewDay, 60000);
   </script></body>
   </html>
