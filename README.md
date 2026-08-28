@@ -1,11 +1,11 @@
 # Queue Performance Dashboard
 
-A private, browser-based dashboard for planning a workday across queues, tracking completed applications, comparing actual work with the plan, and exporting the day's completion history. The application is a single self-contained HTML file: it has no build step, package manager, server-side component, or external runtime dependency.
+A private, browser-based dashboard for planning a workday across queues, recording application outcomes, comparing completed work with the plan, and exporting the day's completion history. The application is a single self-contained HTML file: it has no build step, package manager, server-side component, or external runtime dependency.
 
 ## Contents
 
 - [`queue-performance-dashboard.html`](queue-performance-dashboard.html) — the dashboard application.
-- [`help.html`](help.html) — user guide covering the timer, completions, schedule, settings, reminders, reviews, archives, and resets.
+- [`help.html`](help.html) — user guide covering the timer, outcomes, schedule, settings, reminders, reviews, and resets.
 - [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md) — definitions of persisted state, record shapes, CSV fields, constants, and calculated values.
 
 ## Quick start
@@ -20,10 +20,9 @@ No installation or compilation is required.
 
 1. Open **Menu → Queue Settings** and confirm or update each productive queue's apps-per-hour rate.
 2. Open **Menu → Schedule**, set the shift bounds, and add activities. Each activity lasts until the next activity begins; the final activity ends with the shift.
-3. Select a productive queue on the main screen when work changes. This records the live queue independently of the planned schedule.
-4. Enter an application UID, select an outcome, and choose **App Completed**.
-5. Optionally choose **Save Current Plan** near the start of the day so the end-day review can compare the original and current plans.
-6. Use **End Day Review** to review totals and adherence, then **Export CSV** before **Reset Day**.
+3. During a productive scheduled segment, select **Approve**, **Decline**, **Resub**, **ORE**, or **Other** to record its outcome.
+4. Optionally choose **Save Current Plan** near the start of the day so the end-day review can compare the original and current plans.
+5. Use **End Day Review** to review totals, then **Export CSV** before **Reset Day**.
 
 See the [complete user guide](help.html) for every feature and setting.
 
@@ -31,9 +30,7 @@ See the [complete user guide](help.html) for every feature and setting.
 
 The dashboard stores its state as JSON in browser `localStorage` under `queuePerformanceDashboard.v2`. Data stays in the browser profile and origin where it was entered; the application does not transmit it. A `file://` copy and a localhost-served copy may use different browser storage areas, as can different browsers or browser profiles.
 
-Clearing site data, using private browsing, moving to another browser/profile, or browser storage policies may remove or isolate the saved state. Export completion history regularly if it must be retained elsewhere. Resetting a day creates an in-browser archive, but that archive is stored in the same local state and is not a backup.
-
-The completion UID may be operationally sensitive. Follow your organisation's policies for entering, exporting, sharing, and retaining identifiers.
+Clearing site data, using private browsing, moving to another browser/profile, or browser storage policies may remove or isolate the saved state. Export completion history regularly if it must be retained elsewhere.
 
 ## Targets and timing
 
@@ -53,7 +50,7 @@ Scheduled reminders appear as in-page toasts and require the dashboard tab to re
 
 ## CSV export
 
-**Menu → Export CSV** downloads `queue-history-YYYY-MM-DD.csv`. It includes one row per completion and the UID, selected queue, outcome, recorded timestamp, time that live queue tracking began, planned queue, and planned segment. See the [CSV section of the data dictionary](DATA_DICTIONARY.md#csv-export-fields) for exact column definitions.
+**Menu → Export CSV** downloads `queue-history-YYYY-MM-DD.csv`. It includes one row per completion with its scheduled queue, outcome, recorded timestamp, planned queue, and planned segment. See the [CSV section of the data dictionary](DATA_DICTIONARY.md#csv-export-fields) for exact column definitions.
 
 ## Browser compatibility
 
