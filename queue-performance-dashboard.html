@@ -556,8 +556,6 @@ input:focus, select:focus, textarea:focus {
 }
 
 .hidden { display: none !important; }
-.notification-status { line-height: 1.5; }
-.notification-status strong { color: var(--text); }
 .notification-toast {
   position: fixed;
   right: 20px;
@@ -834,19 +832,18 @@ dialog::backdrop {
       <div class="modal-header"><h2>Notifications</h2><button class="btn small" value="close">Close</button></div>
       <p class="subtle">Get a reminder when a scheduled app target is due. The dashboard must remain open for reminders to run.</p>
       <section class="panel-soft stack">
-        <div id="notificationStatus" class="notification-status subtle"></div>
+        <p class="subtle">Reminders appear as in-page toasts while the dashboard is open.</p>
         <label class="row" style="text-transform: none; letter-spacing: 0;">
           <input id="notificationReminders" type="checkbox" style="width: auto;" /> Enable scheduled target reminders
         </label>
         <div class="row">
-          <button class="btn primary" id="enableNotificationsBtn" type="button">Enable browser notifications</button>
-          <button class="btn" id="testNotificationBtn" type="button">Send test</button>
+          <button class="btn primary" id="testNotificationBtn" type="button">Send test toast</button>
         </div>
         <label class="row" style="text-transform: none; letter-spacing: 0;">
           <input id="notificationSound" type="checkbox" style="width: auto;" /> Play a sound with reminders
         </label>
       </section>
-      <p class="footer-note">Local <code>file://</code> pages do not have consistent notification permission support across browsers. If native notifications are unavailable or blocked, the dashboard automatically uses an in-page notification and sound instead. Serving this file from <code>http://localhost</code> gives browser notifications the best chance of working.</p>
+      <p class="footer-note">Toasts only appear while this page is open. Sound may also require a user interaction before the browser allows it.</p>
     </form>
   </dialog>  <dialog id="detailsDialog">
     <form method="dialog" class="modal-inner stack">
@@ -995,8 +992,6 @@ dialog::backdrop {
       settingsBtn: document.getElementById("settingsBtn"),
       notificationsBtn: document.getElementById("notificationsBtn"),
       notificationDialog: document.getElementById("notificationDialog"),
-      notificationStatus: document.getElementById("notificationStatus"),
-      enableNotificationsBtn: document.getElementById("enableNotificationsBtn"),
       testNotificationBtn: document.getElementById("testNotificationBtn"),
       notificationSound: document.getElementById("notificationSound"),
       notificationReminders: document.getElementById("notificationReminders"),
@@ -1588,18 +1583,7 @@ dialog::backdrop {
       finalRoundTimeout = setTimeout(dismissFinalRound, 6500);
     }
 
-    function browserNotificationAvailable() {
-      return "Notification" in window && window.isSecureContext;
-    }
-
     function renderNotificationStatus() {
-      const isLocalFile = location.protocol === "file:";
-      const permission = "Notification" in window ? Notification.permission : "unavailable";
-      const nativeReady = browserNotificationAvailable() && permission === "granted";
-      const mode = nativeReady ? "Browser notifications" : "In-page notification fallback";
-      els.notificationStatus.innerHTML = `<strong>${mode}</strong><br>${isLocalFile ? "This dashboard is open as a local file, so native permission may be unavailable or browser-dependent." : `Permission: ${escapeHtml(permission)}.`}`;
-      els.enableNotificationsBtn.disabled = !browserNotificationAvailable() || permission === "denied";
-      els.enableNotificationsBtn.textContent = permission === "granted" ? "Browser notifications enabled" : "Enable browser notifications";
       els.notificationSound.checked = state.notificationSound !== false;
       els.notificationReminders.checked = state.notificationsEnabled === true;
     }
@@ -1632,31 +1616,8 @@ dialog::backdrop {
     }
 
     function sendNotification(title, message) {
-      let nativeSent = false;
-      if (browserNotificationAvailable() && Notification.permission === "granted") {
-        try {
-          const notification = new Notification(title, { body: message, tag: "queue-target", renotify: true });
-          notification.onclick = () => { window.focus(); notification.close(); };
-          nativeSent = true;
-        } catch { /* Fall through to the reliable in-page notification. */ }
-      }
-      if (!nativeSent) showInPageNotification(title, message);
+      showInPageNotification(title, message);
       playNotificationSound();
-    }
-
-    async function enableBrowserNotifications() {
-      state.notificationsEnabled = true;
-      if (!browserNotificationAvailable()) {
-        saveState();
-        renderNotificationStatus();
-        showInPageNotification("Fallback enabled", "Native notifications are unavailable here; in-page reminders will be used.");
-        return;
-      }
-      const permission = await Notification.requestPermission();
-      saveState();
-      renderNotificationStatus();
-      if (permission === "granted") sendNotification("Notifications enabled", "Scheduled target reminders are ready.");
-      else showInPageNotification("Fallback enabled", "Browser permission was not granted; in-page reminders will be used.");
     }
 
     function checkDueNotifications() {
@@ -2008,7 +1969,6 @@ dialog::backdrop {
 
     els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
     els.notificationsBtn.addEventListener("click", () => { renderNotificationStatus(); els.notificationDialog.showModal(); });
-    els.enableNotificationsBtn.addEventListener("click", enableBrowserNotifications);
     els.testNotificationBtn.addEventListener("click", () => {
       sendNotification("Test notification", "Queue Performance Dashboard reminders are working.");
     });

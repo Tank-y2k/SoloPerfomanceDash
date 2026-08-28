@@ -14,19 +14,6 @@ A private, browser-based dashboard for planning a workday across queues, trackin
 
 Open `queue-performance-dashboard.html` in a modern browser. All core planning and tracking features work from a local `file://` URL.
 
-### Serve from localhost (recommended)
-
-Browser notification permissions work more reliably on an HTTP origin. From this directory, run:
-
-```bash
-python3 -m http.server 8000
-```
-
-Then visit:
-
-- Dashboard: <http://localhost:8000/queue-performance-dashboard.html>
-- Help: <http://localhost:8000/help.html>
-
 No installation or compilation is required.
 
 ## Typical workflow
@@ -62,7 +49,7 @@ Queues with a rate of zero are non-productive and create no target slots. Built-
 
 ## Notifications
 
-Scheduled reminders require the dashboard tab to remain open. Native browser notifications depend on browser permission and origin policy. If native notifications are unavailable or blocked, the dashboard uses an in-page toast; sound can be enabled separately. Serving from localhost is recommended for native permission support. The app does not install a service worker and cannot remind you after the tab is closed.
+Scheduled reminders appear as in-page toasts and require the dashboard tab to remain open. Sound can be enabled separately. The app cannot remind you after the tab is closed.
 
 ## CSV export
 
@@ -70,7 +57,7 @@ Scheduled reminders require the dashboard tab to remain open. Native browser not
 
 ## Browser compatibility
 
-Use a current desktop browser with support for HTML dialogs, `crypto.randomUUID`, `structuredClone`, `localStorage`, and modern JavaScript. Notification and Web Audio behavior varies by browser. JavaScript and local storage must be enabled.
+Use a current desktop browser with support for HTML dialogs, `crypto.randomUUID`, `structuredClone`, `localStorage`, and modern JavaScript. Web Audio behavior varies by browser. JavaScript and local storage must be enabled.
 
 ## Development and validation
 
@@ -85,7 +72,7 @@ Then exercise the workflow in a browser. When changing the state schema, preserv
 ## Troubleshooting
 
 - **My previous data is missing:** open the same file/origin in the same browser profile used previously. Local-file and localhost storage can differ.
-- **Notifications do not appear:** keep the tab open, enable scheduled reminders, grant browser permission, and try localhost. The in-page fallback should still appear.
+- **Notifications do not appear:** keep the tab open, enable scheduled reminders, and use **Send test toast** to verify in-page reminders.
 - **The timer has no target:** confirm the current time is inside a productive scheduled segment with a positive queue rate and a remaining target slot.
 - **A queue cannot be deleted:** built-in queues are locked; another queue also cannot be deleted while a current schedule segment uses it.
 - **The schedule will not close:** shift end must be after shift start, every activity must begin within the shift, and activities cannot share a start time.
