@@ -33,6 +33,7 @@ body {
 
 button, input, select, textarea { font: inherit; }
 button { border: 0; cursor: pointer; color: inherit; }
+a.btn { text-decoration: none; }
 
 .app-shell {
   width: min(1500px, calc(100% - 32px));
@@ -739,6 +740,7 @@ dialog::backdrop {
       <section class="top-actions">
         <button class="btn" id="menuBtn">Menu</button>
         <div class="menu-panel hidden" id="topMenuPanel">
+          <a class="btn" href="help.html">Help</a>
           <button class="btn" id="settingsBtn">Queue Settings</button>
           <button class="btn" id="notificationsBtn">Notifications</button>
           <button class="btn" id="planBtn">Schedule</button>
