@@ -977,6 +977,7 @@ dialog::backdrop {
     const DEFAULT_SHIFT_START = "11:00";
     const DEFAULT_SHIFT_END = "19:30";
     const TEAM_BRIEFING_MINUTES = 15;
+    const FINAL_ROUND_DURATION_MS = 6500;
 
     const defaultState = {
       departments: [
@@ -1529,9 +1530,73 @@ dialog::backdrop {
     let finalRoundTimeout;
     let audioContext;
 
+    // An original, compact urgency cue for the Final App overlay. Notes are
+    // scheduled against the audio clock, so the rhythm stays musical even if
+    // the UI thread is busy, and every created node is retained for immediate
+    // cleanup when the overlay goes away.
+    const finalRoundUrgencyCue = (() => {
+      let activeNodes = [];
+      let masterGain = null;
+
+      function stop() {
+        activeNodes.forEach(node => {
+          try { node.stop(); } catch { /* The node may have already ended. */ }
+          node.disconnect();
+        });
+        activeNodes = [];
+        masterGain?.disconnect();
+        masterGain = null;
+      }
+
+      function start(durationMs) {
+        stop();
+        if (state.notificationSound === false) return;
+
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          if (audioContext.state === "suspended") audioContext.resume();
+
+          const startAt = audioContext.currentTime + .03;
+          const endAt = startAt + durationMs / 1000;
+          masterGain = audioContext.createGain();
+          masterGain.gain.setValueAtTime(.12, startAt);
+          masterGain.gain.linearRampToValueAtTime(.2, endAt - .15);
+          masterGain.gain.exponentialRampToValueAtTime(.0001, endAt);
+          masterGain.connect(audioContext.destination);
+
+          const motif = [0, 3, 7, 10, 7, 12];
+          let beat = 0;
+          let at = startAt;
+          while (at < endAt - .08) {
+            const progress = (at - startAt) / (endAt - startAt);
+            const beatLength = .48 - (.32 * progress * progress);
+            const oscillator = audioContext.createOscillator();
+            const envelope = audioContext.createGain();
+            const semitone = motif[beat % motif.length] + (progress > .68 ? 12 : 0);
+            oscillator.type = beat % 2 ? "square" : "triangle";
+            oscillator.frequency.value = 220 * (2 ** (semitone / 12));
+            envelope.gain.setValueAtTime(.0001, at);
+            envelope.gain.exponentialRampToValueAtTime(beat % 3 === 0 ? .7 : .42, at + .012);
+            envelope.gain.exponentialRampToValueAtTime(.0001, Math.min(at + beatLength * .58, endAt));
+            oscillator.connect(envelope).connect(masterGain);
+            oscillator.start(at);
+            oscillator.stop(Math.min(at + beatLength * .62, endAt));
+            activeNodes.push(oscillator);
+            beat += 1;
+            at += beatLength;
+          }
+        } catch {
+          stop(); // The visual finale still works when Web Audio is unavailable.
+        }
+      }
+
+      return { start, stop };
+    })();
+
     function dismissFinalRound() {
       clearTimeout(finalRoundTimeout);
       finalRoundTimeout = null;
+      finalRoundUrgencyCue.stop();
       els.finalRound.classList.add("hidden");
     }
 
@@ -1549,7 +1614,8 @@ dialog::backdrop {
       els.finalRound.classList.remove("hidden");
       els.dismissFinalRoundBtn.focus();
       clearTimeout(finalRoundTimeout);
-      finalRoundTimeout = setTimeout(dismissFinalRound, 6500);
+      finalRoundUrgencyCue.start(FINAL_ROUND_DURATION_MS);
+      finalRoundTimeout = setTimeout(dismissFinalRound, FINAL_ROUND_DURATION_MS);
     }
 
     function renderNotificationStatus() {
@@ -2026,6 +2092,7 @@ dialog::backdrop {
       state.notificationSound = els.notificationSound.checked;
       saveState();
       if (state.notificationSound) playNotificationSound();
+      else finalRoundUrgencyCue.stop();
     });
     els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
     els.planBtn.addEventListener("click", () => {
