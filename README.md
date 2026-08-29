@@ -46,7 +46,9 @@ A positive raw target is rounded **up** to the next whole application. A user ca
 
 Queues with a rate of zero are non-productive and create no target slots. Built-in **Non-productive**, **Off queue**, and **Team briefing** activities are locked and always have a zero rate.
 
-The live tracker also reports day and current-segment apps/hour and efficiency. Efficiency compares recorded completions with the unrounded target earned over productive time elapsed so far, so it updates continuously rather than waiting for a whole target slot.
+The live tracker also reports current-department and current-segment apps/hour and efficiency. Department performance is isolated, so work recorded in AA/PCA does not alter BCA efficiency (or vice versa). Efficiency compares recorded completions with the unrounded target earned over relevant productive time elapsed so far, so it updates continuously rather than waiting for a whole target slot.
+
+**Menu → Day Details** shows the recalculated plan for the whole day, each department, each queue, and each productive segment. It includes expected whole apps, recalculated apps/hour, completed apps, productive time, predicted efficiency, current apps/hour, and current efficiency. Current values use only productive time elapsed and completions recorded so far in that row's scope. Predicted efficiency compares the rounded, optionally modified target with the raw queue-rate expectation; rounding normally places it above 100%, while a manual reduction can take it below 100%.
 
 ## Departments
 
