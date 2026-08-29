@@ -19,7 +19,7 @@ No installation or compilation is required.
 ## Typical workflow
 
 1. Open **Menu → Queue Settings** and confirm each productive queue's department and apps-per-hour rate.
-2. Open **Menu → Schedule**, set the shift bounds, and add activities. Each activity lasts until the next activity begins; the final activity ends with the shift.
+2. Open **Menu → Schedule** to build the day manually, or use **Menu → Import Schedule** to paste and preview a copied scheduling-system day before replacing the plan. Each activity lasts until the next activity begins; the final activity ends with the shift.
 3. During a productive scheduled segment, select **Approve**, **Decline**, **Resub**, **ORE**, or **Other** to record its outcome.
 4. Optionally choose **Save Current Plan** near the start of the day so the end-day review can compare the original and current plans.
 5. Use **End Day Review** to review totals, then **Export CSV** before **Reset Day**.
