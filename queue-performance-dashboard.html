@@ -602,6 +602,12 @@ input:focus, select:focus, textarea:focus {
 .upcoming-app-number { color: var(--muted); font-size: .75rem; font-weight: 800; }
 .upcoming-app-queue { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .upcoming-app-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 800; }
+.upcoming-app.non-productive {
+  background: rgba(255, 255, 255, .035);
+  box-shadow: inset 3px 0 var(--queue-color, var(--muted));
+}
+.upcoming-app.non-productive .upcoming-app-number { font-size: 1rem; }
+.upcoming-app.non-productive .upcoming-app-time { color: var(--muted); }
 .upcoming-empty { padding: 16px; text-align: center; }
 
 .table-like { display: grid; gap: 8px; }
@@ -1542,14 +1548,45 @@ dialog::backdrop {
         .filter(slot => slot.at.getTime() > now.getTime())
         .slice(0, 10);
 
-      els.upcomingApps.innerHTML = upcoming.length
-        ? upcoming.map((slot, index) => `
-          <div class="upcoming-app">
-            <span class="upcoming-app-number">${index + 1}</span>
-            <span class="upcoming-app-queue" title="${escapeHtml(slot.queue.name)}">${escapeHtml(slot.queue.name)}</span>
-            <time class="upcoming-app-time" datetime="${slot.at.toISOString()}">${formatClock(slot.at.toISOString())}</time>
-          </div>
-        `).join("")
+      // Keep the ten app targets as the pacing guide, but insert each
+      // non-productive activity encountered before the last displayed target.
+      // This preserves a lunch/break as one schedule block instead of making
+      // the list appear to jump directly between the productive segments.
+      const lastUpcomingAt = upcoming.at(-1)?.at.getTime() ?? Infinity;
+      const nonProductiveSegments = getSortedSegments()
+        .filter(segment => {
+          const queue = getQueue(segment.queueId);
+          const { start, end } = getSegmentBounds(segment);
+          const startsAt = getScheduleDateAtMinutes(start).getTime();
+          const endsAt = getScheduleDateAtMinutes(end).getTime();
+          return !isProductiveQueue(queue) && endsAt > now.getTime() && startsAt <= lastUpcomingAt;
+        })
+        .map(segment => ({
+          type: "activity",
+          at: getScheduleDateAtMinutes(getSegmentBounds(segment).start),
+          queue: getQueue(segment.queueId),
+          segment
+        }));
+
+      const items = [
+        ...upcoming.map((slot, index) => ({ type: "app", at: slot.at, slot, appIndex: index + 1 })),
+        ...nonProductiveSegments
+      ].sort((a, b) => a.at.getTime() - b.at.getTime() || (a.type === "app" ? -1 : 1));
+
+      els.upcomingApps.innerHTML = items.length
+        ? items.map(item => item.type === "app" ? `
+            <div class="upcoming-app">
+              <span class="upcoming-app-number">${item.appIndex}</span>
+              <span class="upcoming-app-queue" title="${escapeHtml(item.slot.queue.name)}">${escapeHtml(item.slot.queue.name)}</span>
+              <time class="upcoming-app-time" datetime="${item.at.toISOString()}">${formatClock(item.at.toISOString())}</time>
+            </div>
+          ` : `
+            <div class="upcoming-app non-productive" style="--queue-color: ${item.queue?.color || "#64748b"};">
+              <span class="upcoming-app-number" aria-hidden="true">—</span>
+              <span class="upcoming-app-queue" title="${escapeHtml(item.queue?.name || "Non-productive activity")}">${escapeHtml(item.queue?.name || "Non-productive activity")}</span>
+              <span class="upcoming-app-time">${item.segment.start}–${getSegmentEnd(item.segment)}</span>
+            </div>
+          `).join("")
         : `<div class="upcoming-empty subtle">No more apps are scheduled today.</div>`;
     }
 
