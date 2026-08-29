@@ -244,6 +244,24 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: -.07em;
   font-variant-numeric: tabular-nums;
 }
+.segment-countdown {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.segment-countdown-time {
+  color: var(--text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
 .timer-progress { height: 7px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
 .timer-progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .3s linear; }
 
@@ -806,6 +824,10 @@ dialog::backdrop {
     <div class="tracker-card">
       <div class="timer-caption" id="timerCaption">Remaining</div>
       <div class="timer-display" id="timerDisplay">--:--</div>
+      <div class="segment-countdown">
+        <span>Segment ends in</span>
+        <time class="segment-countdown-time" id="segmentCountdown">--:--</time>
+      </div>
       <div class="tracker-facts">
         <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
@@ -1065,6 +1087,7 @@ dialog::backdrop {
       segmentList: document.getElementById("segmentList"),
       timerCaption: document.getElementById("timerCaption"),
       timerDisplay: document.getElementById("timerDisplay"),
+      segmentCountdown: document.getElementById("segmentCountdown"),
       timerEtc: document.getElementById("timerEtc"),
       timerTarget: document.getElementById("timerTarget"),
       currentDepartment: document.getElementById("currentDepartment"),
@@ -1736,6 +1759,12 @@ dialog::backdrop {
       const now = nowDate();
       const plannedSegment = getPlannedSegmentAtNow();
       const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
+      const segmentEnd = plannedSegment
+        ? getScheduleDateAtMinutes(getSegmentBounds(plannedSegment).end)
+        : null;
+      els.segmentCountdown.textContent = segmentEnd
+        ? formatDuration((segmentEnd.getTime() - now.getTime()) / 1000)
+        : "--:--";
       const slots = getScheduledCompletionSlots();
       const currentSlots = plannedSegment ? slots.filter(slot => slot.segment.id === plannedSegment.id) : [];
       const nextSlot = currentSlots.find(slot => slot.at.getTime() > now.getTime());
