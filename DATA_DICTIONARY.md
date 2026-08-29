@@ -154,8 +154,10 @@ Segments must start within the shift and cannot have duplicate start times. Thei
 | Completed in segment | Count of completions whose `segmentId` equals that segment ID. |
 | Elapsed productive hours | Productive duration elapsed so far, capped at segment bounds; calculated for the day or current segment. |
 | Running expected apps | Sum of elapsed productive hours multiplied by each relevant queue rate. |
-| Running apps/hour | Relevant completions at or before the current time divided by elapsed productive hours. Day performance includes manually reassigned entries without a segment. |
-| Running efficiency | Relevant completions at or before the current time divided by running expected apps, multiplied by 100. |
+| Running apps/hour | Relevant completions at or before the current time divided by elapsed productive hours. The live day metric is restricted to the active queue's department; manually reassigned entries are attributed by their recorded queue. |
+| Running efficiency | Relevant completions at or before the current time divided by running expected apps, multiplied by 100. The live day metric is restricted to the active queue's department. |
+| Predicted efficiency | Recalculated whole-app target divided by the raw unrounded expectation, multiplied by 100. Available for the whole day and grouped by department, queue, and segment in Day Details. |
+| Expected apps/hour | Recalculated whole-app target divided by productive scheduled hours for the selected Day Details scope. |
 | Current variance | Total completions minus current expected full-day total. |
 | Timer ETC | Local clock time of the next scheduled target slot. |
 | Timer Target | Current target ordinal and segment total, e.g. `2 / 5`. |

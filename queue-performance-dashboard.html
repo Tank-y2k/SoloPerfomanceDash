@@ -362,6 +362,16 @@ input:focus, select:focus, textarea:focus {
 }
 
 .schedule-modal { width: min(980px, calc(100vw - 28px)); }
+.day-detail-modal { width: min(1180px, calc(100vw - 28px)); }
+.day-detail-modal .modal-inner { max-height: min(88vh, 920px); overflow: auto; }
+.day-detail-modal .panel-soft { overflow-x: auto; }
+.detail-table { width: 100%; min-width: 720px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.detail-table th, .detail-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: right; }
+.detail-table th:first-child, .detail-table td:first-child { text-align: left; }
+.detail-table th { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
+.detail-table .detail-name { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.detail-table .detail-sub { color: var(--muted); font-size: .78rem; font-weight: 400; }
+.detail-section-heading { margin-bottom: 8px; }
 .schedule-toolbar {
   display: grid;
   grid-template-columns: repeat(2, minmax(150px, 190px)) 1fr;
@@ -828,6 +838,7 @@ dialog::backdrop {
           <button class="btn" id="planBtn">Schedule</button>
           <button class="btn" id="scheduleImporterBtn">Import Schedule</button>
           <button class="btn" id="snapshotBtn">Save Current Plan</button>
+          <button class="btn" id="dayDetailBtn">Day Details</button>
           <button class="btn warning" id="endDayBtn">End Day Review</button>
           <button class="btn" id="completedAppsBtn">Completed Apps</button>
           <button class="btn" id="exportCsvBtn">Export CSV</button>
@@ -847,9 +858,9 @@ dialog::backdrop {
         <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Department</span><span class="tracker-fact-value" id="currentDepartment">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label" id="dayEfficiencyLabel">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
       </div>
@@ -969,6 +980,14 @@ dialog::backdrop {
       </div>
       <div class="stack" id="reviewContent"></div>
       <p class="footer-note">Start plan is captured with “Save Current Plan”. Current plan reflects whatever chaos Resource Planning later inflicted.</p>
+    </form>
+  </dialog>  <dialog id="dayDetailDialog" class="day-detail-modal">
+    <form method="dialog" class="modal-inner stack">
+      <div class="modal-header">
+        <div><h2>Day Details</h2><p class="subtle">Recalculated targets and performance, kept separate by department and queue.</p></div>
+        <button class="btn small" value="close">Close</button>
+      </div>
+      <div class="stack" id="dayDetailContent"></div>
     </form>
   </dialog>  <dialog id="completionDialog" class="completion-modal">
     <form method="dialog" class="modal-inner stack">
@@ -1099,6 +1118,9 @@ dialog::backdrop {
       scheduleImportMessage: document.getElementById("scheduleImportMessage"),
       scheduleImportPreview: document.getElementById("scheduleImportPreview"),
       snapshotBtn: document.getElementById("snapshotBtn"),
+      dayDetailBtn: document.getElementById("dayDetailBtn"),
+      dayDetailDialog: document.getElementById("dayDetailDialog"),
+      dayDetailContent: document.getElementById("dayDetailContent"),
       endDayBtn: document.getElementById("endDayBtn"),
       exportCsvBtn: document.getElementById("exportCsvBtn"),
       resetBtn: document.getElementById("resetBtn"),
@@ -1133,8 +1155,10 @@ dialog::backdrop {
       timerTarget: document.getElementById("timerTarget"),
       currentDepartment: document.getElementById("currentDepartment"),
       dayEfficiency: document.getElementById("dayEfficiency"),
+      dayEfficiencyLabel: document.getElementById("dayEfficiencyLabel"),
       segmentEfficiency: document.getElementById("segmentEfficiency"),
       dayAppsPerHour: document.getElementById("dayAppsPerHour"),
+      dayAppsPerHourLabel: document.getElementById("dayAppsPerHourLabel"),
       segmentAppsPerHour: document.getElementById("segmentAppsPerHour"),
       segmentCompleted: document.getElementById("segmentCompleted"),
       timerProgress: document.getElementById("timerProgress"),
@@ -1385,8 +1409,11 @@ dialog::backdrop {
       return Math.max(0, Math.min(now, end) - start) / 60;
     }
 
-    function getRunningPerformance(segment = null) {
-      const segments = segment ? [segment] : state.segments;
+    function getRunningPerformance(segment = null, departmentId = null) {
+      const segments = (segment ? [segment] : state.segments).filter(item => {
+        const queue = getQueue(item.queueId);
+        return !departmentId || queue?.departmentId === departmentId;
+      });
       const elapsedHours = segments.reduce((sum, item) => sum + getElapsedSegmentHours(item), 0);
       const expected = segments.reduce((sum, item) => {
         const queue = getQueue(item.queueId);
@@ -1394,9 +1421,11 @@ dialog::backdrop {
       }, 0);
       const segmentIds = new Set(segments.map(item => item.id));
       const now = nowDate();
-      const completed = segment
-        ? state.completions.filter(app => segmentIds.has(app.segmentId) && new Date(app.at) <= now).length
-        : state.completions.filter(app => new Date(app.at) <= now).length;
+      const completed = state.completions.filter(app => {
+        if (new Date(app.at) > now) return false;
+        if (segment) return segmentIds.has(app.segmentId);
+        return !departmentId || getQueue(app.queueId)?.departmentId === departmentId;
+      }).length;
       return {
         appsPerHour: elapsedHours > 0 ? completed / elapsedHours : null,
         efficiency: expected > 0 ? (completed / expected) * 100 : null
@@ -1410,9 +1439,12 @@ dialog::backdrop {
     function renderPerformance() {
       const segment = getCurrentSegment();
       const queue = segment ? getQueue(segment.queueId) : null;
-      const day = getRunningPerformance();
+      const department = getDepartment(queue?.departmentId);
+      const day = getRunningPerformance(null, department?.id || null);
       const current = segment && isProductiveQueue(queue) ? getRunningPerformance(segment) : null;
       els.currentDepartment.textContent = getDepartment(queue?.departmentId)?.name || "--";
+      els.dayEfficiencyLabel.textContent = department ? `${department.name} efficiency` : "Day efficiency";
+      els.dayAppsPerHourLabel.textContent = department ? `${department.name} apps/hr` : "Day apps/hr";
       els.dayEfficiency.textContent = formatMetric(day.efficiency, "%");
       els.dayAppsPerHour.textContent = formatMetric(day.appsPerHour);
       els.segmentEfficiency.textContent = formatMetric(current?.efficiency, "%");
@@ -2057,6 +2089,75 @@ dialog::backdrop {
       els.reviewDialog.showModal();
     }
 
+    function getDayDetailSummary(segments, exactSegments = false) {
+      const productiveSegments = segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
+      const segmentIds = new Set(productiveSegments.map(segment => segment.id));
+      const queueIds = new Set(productiveSegments.map(segment => segment.queueId));
+      const minutes = productiveSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0);
+      const plans = productiveSegments.map(segment => getSegmentTargetPlan(segment));
+      const rawExpected = plans.reduce((sum, plan) => sum + plan.rawExpectedApps, 0);
+      const expectedApps = plans.reduce((sum, plan) => sum + plan.expectedApps, 0);
+      const completed = state.completions.filter(app => exactSegments ? segmentIds.has(app.segmentId) : queueIds.has(app.queueId)).length;
+      return {
+        minutes,
+        rawExpected,
+        expectedApps,
+        completed,
+        adjusted: plans.reduce((sum, plan) => sum + (plan.targetAdjustment === -1 ? 1 : 0), 0),
+        predictedEfficiency: rawExpected > 0 ? (expectedApps / rawExpected) * 100 : null,
+        expectedAppsPerHour: minutes > 0 ? expectedApps / (minutes / 60) : null
+      };
+    }
+
+    function detailMetric(value, suffix = "") {
+      return Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : "--";
+    }
+
+    function renderDetailRow(name, sub, segments, color = null, exactSegments = false) {
+      const summary = getDayDetailSummary(segments, exactSegments);
+      const modifier = summary.adjusted ? `<span class="pill warn">${summary.adjusted} modified</span>` : "";
+      return `<tr>
+        <td><div class="detail-name">${color ? `<span class="swatch" style="--queue-color:${color}"></span>` : ""}<span>${escapeHtml(name)}<br><span class="detail-sub">${escapeHtml(sub)}</span></span>${modifier}</div></td>
+        <td>${formatHoursMinutes(summary.minutes / 60)}</td><td>${summary.completed}</td><td>${summary.expectedApps}</td>
+        <td>${detailMetric(summary.expectedAppsPerHour)}</td><td>${detailMetric(summary.predictedEfficiency, "%")}</td>
+      </tr>`;
+    }
+
+    function renderDetailTable(rows) {
+      return `<div class="panel-soft"><table class="detail-table"><thead><tr><th>Scope</th><th>Time</th><th>Done</th><th>Expected apps</th><th>Expected apps/hr</th><th>Predicted efficiency</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    }
+
+    function showDayDetails() {
+      const productive = state.segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
+      const wholeDay = getDayDetailSummary(productive);
+      const nonProductiveMinutes = state.segments.filter(segment => !isProductiveQueue(getQueue(segment.queueId))).reduce((sum, segment) => sum + getSegmentMinutes(segment), 0);
+      const departmentRows = state.departments.map(department => {
+        const segments = productive.filter(segment => getQueue(segment.queueId)?.departmentId === department.id);
+        return segments.length ? renderDetailRow(department.name, `${segments.length} productive ${segments.length === 1 ? "segment" : "segments"}`, segments) : "";
+      }).join("");
+      const queueRows = state.queues.filter(isProductiveQueue).map(queue => {
+        const segments = productive.filter(segment => segment.queueId === queue.id);
+        return segments.length ? renderDetailRow(queue.name, getDepartment(queue.departmentId)?.name || "Unassigned", segments, queue.color) : "";
+      }).join("");
+      const segmentRows = getSortedSegments().filter(segment => isProductiveQueue(getQueue(segment.queueId))).map(segment => {
+        const queue = getQueue(segment.queueId);
+        return renderDetailRow(queue?.name || "Missing queue", `${segment.start}–${getSegmentEnd(segment)} · ${getDepartment(queue?.departmentId)?.name || "Unassigned"}`, [segment], queue?.color, true);
+      }).join("");
+      els.dayDetailContent.innerHTML = `
+        <section class="stats-grid four">
+          <article class="stat"><div class="value">${wholeDay.expectedApps}</div><div class="label">Expected apps</div></article>
+          <article class="stat ${wholeDay.predictedEfficiency >= 100 ? "good" : "warn"}"><div class="value">${detailMetric(wholeDay.predictedEfficiency, "%")}</div><div class="label">Predicted efficiency</div></article>
+          <article class="stat"><div class="value">${detailMetric(wholeDay.expectedAppsPerHour)}</div><div class="label">Expected apps/hr</div></article>
+          <article class="stat"><div class="value">${formatHoursMinutes(nonProductiveMinutes / 60)}</div><div class="label">Non-productive time</div></article>
+        </section>
+        <p class="subtle">Predicted efficiency compares each recalculated whole-app target with its unrounded queue-rate expectation. Rounding up normally makes it at least 100%; manual target reductions can lower it.</p>
+        <section><h3 class="detail-section-heading">Whole day</h3>${renderDetailTable(renderDetailRow("All departments", `${productive.length} productive segments`, productive))}</section>
+        <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="6" class="subtle">No productive departments scheduled.</td></tr>')}</section>
+        <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="6" class="subtle">No productive queues scheduled.</td></tr>')}</section>
+        <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="6" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
+      els.dayDetailDialog.showModal();
+    }
+
     function getSnapshotSegmentExpected(segment) {
       return getSegmentTargetPlan(
         segment,
@@ -2413,6 +2514,7 @@ dialog::backdrop {
       if (!validateScheduleBeforeClose()) event.preventDefault();
     });
     els.snapshotBtn.addEventListener("click", saveSnapshot);
+    els.dayDetailBtn.addEventListener("click", showDayDetails);
     els.endDayBtn.addEventListener("click", showReview);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
     els.completionHistory.addEventListener("change", event => {
