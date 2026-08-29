@@ -244,6 +244,24 @@ input:focus, select:focus, textarea:focus {
   letter-spacing: -.07em;
   font-variant-numeric: tabular-nums;
 }
+.segment-countdown {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: .74rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.segment-countdown-time {
+  color: var(--text);
+  font-size: 1rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .02em;
+}
 .timer-progress { height: 7px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
 .timer-progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .3s linear; }
 
@@ -806,6 +824,10 @@ dialog::backdrop {
     <div class="tracker-card">
       <div class="timer-caption" id="timerCaption">Remaining</div>
       <div class="timer-display" id="timerDisplay">--:--</div>
+      <div class="segment-countdown">
+        <span>Segment ends in</span>
+        <time class="segment-countdown-time" id="segmentCountdown">--:--</time>
+      </div>
       <div class="tracker-facts">
         <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
@@ -868,6 +890,9 @@ dialog::backdrop {
         </div>
         <label class="row" style="text-transform: none; letter-spacing: 0;">
           <input id="notificationSound" type="checkbox" style="width: auto;" /> Play a sound with reminders
+        </label>
+        <label class="row" style="text-transform: none; letter-spacing: 0;">
+          <input id="finalRoundMusic" type="checkbox" style="width: auto;" /> Play urgency music for Final App
         </label>
       </section>
       <p class="footer-note">Toasts only appear while this page is open. Sound may also require a user interaction before the browser allows it.</p>
@@ -1003,6 +1028,7 @@ dialog::backdrop {
       timerQueueId: null,
       notificationsEnabled: false,
       notificationSound: true,
+      finalRoundMusic: true,
       lastNotifiedSlot: null,
       lastFinalRoundSegment: null,
       dayDate: localDateKey(),
@@ -1021,6 +1047,7 @@ dialog::backdrop {
       notificationDialog: document.getElementById("notificationDialog"),
       testNotificationBtn: document.getElementById("testNotificationBtn"),
       notificationSound: document.getElementById("notificationSound"),
+      finalRoundMusic: document.getElementById("finalRoundMusic"),
       notificationReminders: document.getElementById("notificationReminders"),
       notificationToast: document.getElementById("notificationToast"),
       notificationToastTitle: document.getElementById("notificationToastTitle"),
@@ -1060,6 +1087,7 @@ dialog::backdrop {
       segmentList: document.getElementById("segmentList"),
       timerCaption: document.getElementById("timerCaption"),
       timerDisplay: document.getElementById("timerDisplay"),
+      segmentCountdown: document.getElementById("segmentCountdown"),
       timerEtc: document.getElementById("timerEtc"),
       timerTarget: document.getElementById("timerTarget"),
       currentDepartment: document.getElementById("currentDepartment"),
@@ -1526,13 +1554,98 @@ dialog::backdrop {
     }
 
     let toastTimeout;
-    let finalRoundTimeout;
+    let finalRoundDismissTimeout;
     let audioContext;
 
+    // An original, compact urgency cue for the Final App overlay. Notes are
+    // scheduled against the audio clock, so the rhythm stays musical even if
+    // the UI thread is busy, and every created node is retained for immediate
+    // cleanup when the cue expires or is interrupted.
+    const finalRoundUrgencyCue = (() => {
+      let activeVoices = new Set();
+      let masterGain = null;
+      let nextBeatTimeout = null;
+      let endTimeout = null;
+
+      function stop() {
+        clearTimeout(nextBeatTimeout);
+        clearTimeout(endTimeout);
+        nextBeatTimeout = null;
+        endTimeout = null;
+        activeVoices.forEach(({ oscillator, envelope }) => {
+          try { oscillator.stop(); } catch { /* The node may have already ended. */ }
+          oscillator.disconnect();
+          envelope.disconnect();
+        });
+        activeVoices.clear();
+        masterGain?.disconnect();
+        masterGain = null;
+      }
+
+      function start(deadline) {
+        stop();
+        if (state.finalRoundMusic === false) return;
+
+        try {
+          audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
+          if (audioContext.state === "suspended") audioContext.resume();
+
+          const startedAt = Date.now();
+          const deadlineAt = deadline.getTime();
+          const durationMs = Math.max(1, deadlineAt - startedAt);
+          masterGain = audioContext.createGain();
+          masterGain.gain.value = .16;
+          masterGain.connect(audioContext.destination);
+
+          const motif = [0, 3, 7, 10, 7, 12];
+          let beat = 0;
+          function scheduleBeat() {
+            const remainingMs = deadlineAt - Date.now();
+            if (remainingMs <= 0 || !masterGain) return stop();
+
+            const progress = Math.min(1, (Date.now() - startedAt) / durationMs);
+            const beatLength = .48 - (.32 * progress * progress);
+            const at = audioContext.currentTime + .02;
+            const oscillator = audioContext.createOscillator();
+            const envelope = audioContext.createGain();
+            const semitone = motif[beat % motif.length] + (progress > .68 ? 12 : 0);
+            oscillator.type = beat % 2 ? "square" : "triangle";
+            oscillator.frequency.value = 220 * (2 ** (semitone / 12));
+            envelope.gain.setValueAtTime(.0001, at);
+            envelope.gain.exponentialRampToValueAtTime(beat % 3 === 0 ? .7 : .42, at + .012);
+            envelope.gain.exponentialRampToValueAtTime(.0001, at + beatLength * .58);
+            oscillator.connect(envelope).connect(masterGain);
+            oscillator.start(at);
+            oscillator.stop(at + beatLength * .62);
+            const voice = { oscillator, envelope };
+            activeVoices.add(voice);
+            oscillator.onended = () => {
+              oscillator.disconnect();
+              envelope.disconnect();
+              activeVoices.delete(voice);
+            };
+            beat += 1;
+            nextBeatTimeout = setTimeout(scheduleBeat, Math.min(beatLength * 1000, remainingMs));
+          }
+          scheduleBeat();
+          endTimeout = setTimeout(stop, durationMs);
+        } catch {
+          stop(); // The visual finale still works when Web Audio is unavailable.
+        }
+      }
+
+      return { start, stop };
+    })();
+
     function dismissFinalRound() {
-      clearTimeout(finalRoundTimeout);
-      finalRoundTimeout = null;
+      clearTimeout(finalRoundDismissTimeout);
+      finalRoundDismissTimeout = null;
       els.finalRound.classList.add("hidden");
+    }
+
+    function interruptFinalRound() {
+      dismissFinalRound();
+      finalRoundUrgencyCue.stop();
     }
 
     function checkFinalRound(slot, now) {
@@ -1548,12 +1661,17 @@ dialog::backdrop {
       els.finalRoundDetail.textContent = `The final scheduled app for this segment is due by ${formatClock(slot.at.toISOString())}.`;
       els.finalRound.classList.remove("hidden");
       els.dismissFinalRoundBtn.focus();
-      clearTimeout(finalRoundTimeout);
-      finalRoundTimeout = setTimeout(dismissFinalRound, 6500);
+      finalRoundUrgencyCue.start(slot.at);
+      clearTimeout(finalRoundDismissTimeout);
+      finalRoundDismissTimeout = setTimeout(
+        dismissFinalRound,
+        Math.max(0, slot.at.getTime() - Date.now())
+      );
     }
 
     function renderNotificationStatus() {
       els.notificationSound.checked = state.notificationSound !== false;
+      els.finalRoundMusic.checked = state.finalRoundMusic !== false;
       els.notificationReminders.checked = state.notificationsEnabled === true;
     }
 
@@ -1633,7 +1751,7 @@ dialog::backdrop {
       clearTimeout(toastTimeout);
       toastTimeout = null;
       els.notificationToast.classList.add("hidden");
-      dismissFinalRound();
+      interruptFinalRound();
     }
 
     function renderTimer() {
@@ -1641,6 +1759,12 @@ dialog::backdrop {
       const now = nowDate();
       const plannedSegment = getPlannedSegmentAtNow();
       const plannedQueue = plannedSegment ? getQueue(plannedSegment.queueId) : null;
+      const segmentEnd = plannedSegment
+        ? getScheduleDateAtMinutes(getSegmentBounds(plannedSegment).end)
+        : null;
+      els.segmentCountdown.textContent = segmentEnd
+        ? formatDuration((segmentEnd.getTime() - now.getTime()) / 1000)
+        : "--:--";
       const slots = getScheduledCompletionSlots();
       const currentSlots = plannedSegment ? slots.filter(slot => slot.segment.id === plannedSegment.id) : [];
       const nextSlot = currentSlots.find(slot => slot.at.getTime() > now.getTime());
@@ -1746,6 +1870,7 @@ dialog::backdrop {
         outcome
       };
       state.completions.push(completion);
+      finalRoundUrgencyCue.stop();
       logActivity("complete", `Recorded ${outcome} from ${queue.name}.`);
       renderAll();
     }
@@ -2007,12 +2132,6 @@ dialog::backdrop {
       sendNotification("Test notification", "Queue Performance Dashboard reminders are working.");
     });
     els.dismissFinalRoundBtn.addEventListener("click", dismissFinalRound);
-    els.finalRound.addEventListener("click", event => {
-      if (event.target === els.finalRound) dismissFinalRound();
-    });
-    document.addEventListener("keydown", event => {
-      if (event.key === "Escape" && !els.finalRound.classList.contains("hidden")) dismissFinalRound();
-    });
     els.notificationReminders.addEventListener("change", () => {
       state.notificationsEnabled = els.notificationReminders.checked;
       // Start at the next target instead of replaying an earlier due target.
@@ -2026,6 +2145,11 @@ dialog::backdrop {
       state.notificationSound = els.notificationSound.checked;
       saveState();
       if (state.notificationSound) playNotificationSound();
+    });
+    els.finalRoundMusic.addEventListener("change", () => {
+      state.finalRoundMusic = els.finalRoundMusic.checked;
+      saveState();
+      if (!state.finalRoundMusic) finalRoundUrgencyCue.stop();
     });
     els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
     els.planBtn.addEventListener("click", () => {
