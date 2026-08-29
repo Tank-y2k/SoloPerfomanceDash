@@ -1531,6 +1531,7 @@ dialog::backdrop {
     }
 
     let toastTimeout;
+    let finalRoundDismissTimeout;
     let audioContext;
 
     // An original, compact urgency cue for the Final App overlay. Notes are
@@ -1614,6 +1615,8 @@ dialog::backdrop {
     })();
 
     function dismissFinalRound() {
+      clearTimeout(finalRoundDismissTimeout);
+      finalRoundDismissTimeout = null;
       els.finalRound.classList.add("hidden");
     }
 
@@ -1636,6 +1639,11 @@ dialog::backdrop {
       els.finalRound.classList.remove("hidden");
       els.dismissFinalRoundBtn.focus();
       finalRoundUrgencyCue.start(slot.at);
+      clearTimeout(finalRoundDismissTimeout);
+      finalRoundDismissTimeout = setTimeout(
+        dismissFinalRound,
+        Math.max(0, slot.at.getTime() - Date.now())
+      );
     }
 
     function renderNotificationStatus() {
