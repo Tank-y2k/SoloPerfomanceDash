@@ -869,6 +869,9 @@ dialog::backdrop {
         <label class="row" style="text-transform: none; letter-spacing: 0;">
           <input id="notificationSound" type="checkbox" style="width: auto;" /> Play a sound with reminders
         </label>
+        <label class="row" style="text-transform: none; letter-spacing: 0;">
+          <input id="finalRoundMusic" type="checkbox" style="width: auto;" /> Play urgency music for Final App
+        </label>
       </section>
       <p class="footer-note">Toasts only appear while this page is open. Sound may also require a user interaction before the browser allows it.</p>
     </form>
@@ -977,7 +980,6 @@ dialog::backdrop {
     const DEFAULT_SHIFT_START = "11:00";
     const DEFAULT_SHIFT_END = "19:30";
     const TEAM_BRIEFING_MINUTES = 15;
-    const FINAL_ROUND_DURATION_MS = 6500;
 
     const defaultState = {
       departments: [
@@ -1004,6 +1006,7 @@ dialog::backdrop {
       timerQueueId: null,
       notificationsEnabled: false,
       notificationSound: true,
+      finalRoundMusic: true,
       lastNotifiedSlot: null,
       lastFinalRoundSegment: null,
       dayDate: localDateKey(),
@@ -1022,6 +1025,7 @@ dialog::backdrop {
       notificationDialog: document.getElementById("notificationDialog"),
       testNotificationBtn: document.getElementById("testNotificationBtn"),
       notificationSound: document.getElementById("notificationSound"),
+      finalRoundMusic: document.getElementById("finalRoundMusic"),
       notificationReminders: document.getElementById("notificationReminders"),
       notificationToast: document.getElementById("notificationToast"),
       notificationToastTitle: document.getElementById("notificationToastTitle"),
@@ -1527,49 +1531,57 @@ dialog::backdrop {
     }
 
     let toastTimeout;
-    let finalRoundTimeout;
     let audioContext;
 
     // An original, compact urgency cue for the Final App overlay. Notes are
     // scheduled against the audio clock, so the rhythm stays musical even if
     // the UI thread is busy, and every created node is retained for immediate
-    // cleanup when the overlay goes away.
+    // cleanup when the cue expires or is interrupted.
     const finalRoundUrgencyCue = (() => {
-      let activeNodes = [];
+      let activeVoices = new Set();
       let masterGain = null;
+      let nextBeatTimeout = null;
+      let endTimeout = null;
 
       function stop() {
-        activeNodes.forEach(node => {
-          try { node.stop(); } catch { /* The node may have already ended. */ }
-          node.disconnect();
+        clearTimeout(nextBeatTimeout);
+        clearTimeout(endTimeout);
+        nextBeatTimeout = null;
+        endTimeout = null;
+        activeVoices.forEach(({ oscillator, envelope }) => {
+          try { oscillator.stop(); } catch { /* The node may have already ended. */ }
+          oscillator.disconnect();
+          envelope.disconnect();
         });
-        activeNodes = [];
+        activeVoices.clear();
         masterGain?.disconnect();
         masterGain = null;
       }
 
-      function start(durationMs) {
+      function start(deadline) {
         stop();
-        if (state.notificationSound === false) return;
+        if (state.finalRoundMusic === false) return;
 
         try {
           audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
           if (audioContext.state === "suspended") audioContext.resume();
 
-          const startAt = audioContext.currentTime + .03;
-          const endAt = startAt + durationMs / 1000;
+          const startedAt = Date.now();
+          const deadlineAt = deadline.getTime();
+          const durationMs = Math.max(1, deadlineAt - startedAt);
           masterGain = audioContext.createGain();
-          masterGain.gain.setValueAtTime(.12, startAt);
-          masterGain.gain.linearRampToValueAtTime(.2, endAt - .15);
-          masterGain.gain.exponentialRampToValueAtTime(.0001, endAt);
+          masterGain.gain.value = .16;
           masterGain.connect(audioContext.destination);
 
           const motif = [0, 3, 7, 10, 7, 12];
           let beat = 0;
-          let at = startAt;
-          while (at < endAt - .08) {
-            const progress = (at - startAt) / (endAt - startAt);
+          function scheduleBeat() {
+            const remainingMs = deadlineAt - Date.now();
+            if (remainingMs <= 0 || !masterGain) return stop();
+
+            const progress = Math.min(1, (Date.now() - startedAt) / durationMs);
             const beatLength = .48 - (.32 * progress * progress);
+            const at = audioContext.currentTime + .02;
             const oscillator = audioContext.createOscillator();
             const envelope = audioContext.createGain();
             const semitone = motif[beat % motif.length] + (progress > .68 ? 12 : 0);
@@ -1577,14 +1589,22 @@ dialog::backdrop {
             oscillator.frequency.value = 220 * (2 ** (semitone / 12));
             envelope.gain.setValueAtTime(.0001, at);
             envelope.gain.exponentialRampToValueAtTime(beat % 3 === 0 ? .7 : .42, at + .012);
-            envelope.gain.exponentialRampToValueAtTime(.0001, Math.min(at + beatLength * .58, endAt));
+            envelope.gain.exponentialRampToValueAtTime(.0001, at + beatLength * .58);
             oscillator.connect(envelope).connect(masterGain);
             oscillator.start(at);
-            oscillator.stop(Math.min(at + beatLength * .62, endAt));
-            activeNodes.push(oscillator);
+            oscillator.stop(at + beatLength * .62);
+            const voice = { oscillator, envelope };
+            activeVoices.add(voice);
+            oscillator.onended = () => {
+              oscillator.disconnect();
+              envelope.disconnect();
+              activeVoices.delete(voice);
+            };
             beat += 1;
-            at += beatLength;
+            nextBeatTimeout = setTimeout(scheduleBeat, Math.min(beatLength * 1000, remainingMs));
           }
+          scheduleBeat();
+          endTimeout = setTimeout(stop, durationMs);
         } catch {
           stop(); // The visual finale still works when Web Audio is unavailable.
         }
@@ -1594,10 +1614,12 @@ dialog::backdrop {
     })();
 
     function dismissFinalRound() {
-      clearTimeout(finalRoundTimeout);
-      finalRoundTimeout = null;
-      finalRoundUrgencyCue.stop();
       els.finalRound.classList.add("hidden");
+    }
+
+    function interruptFinalRound() {
+      dismissFinalRound();
+      finalRoundUrgencyCue.stop();
     }
 
     function checkFinalRound(slot, now) {
@@ -1613,13 +1635,12 @@ dialog::backdrop {
       els.finalRoundDetail.textContent = `The final scheduled app for this segment is due by ${formatClock(slot.at.toISOString())}.`;
       els.finalRound.classList.remove("hidden");
       els.dismissFinalRoundBtn.focus();
-      clearTimeout(finalRoundTimeout);
-      finalRoundUrgencyCue.start(FINAL_ROUND_DURATION_MS);
-      finalRoundTimeout = setTimeout(dismissFinalRound, FINAL_ROUND_DURATION_MS);
+      finalRoundUrgencyCue.start(slot.at);
     }
 
     function renderNotificationStatus() {
       els.notificationSound.checked = state.notificationSound !== false;
+      els.finalRoundMusic.checked = state.finalRoundMusic !== false;
       els.notificationReminders.checked = state.notificationsEnabled === true;
     }
 
@@ -1699,7 +1720,7 @@ dialog::backdrop {
       clearTimeout(toastTimeout);
       toastTimeout = null;
       els.notificationToast.classList.add("hidden");
-      dismissFinalRound();
+      interruptFinalRound();
     }
 
     function renderTimer() {
@@ -1812,6 +1833,7 @@ dialog::backdrop {
         outcome
       };
       state.completions.push(completion);
+      finalRoundUrgencyCue.stop();
       logActivity("complete", `Recorded ${outcome} from ${queue.name}.`);
       renderAll();
     }
@@ -2073,12 +2095,6 @@ dialog::backdrop {
       sendNotification("Test notification", "Queue Performance Dashboard reminders are working.");
     });
     els.dismissFinalRoundBtn.addEventListener("click", dismissFinalRound);
-    els.finalRound.addEventListener("click", event => {
-      if (event.target === els.finalRound) dismissFinalRound();
-    });
-    document.addEventListener("keydown", event => {
-      if (event.key === "Escape" && !els.finalRound.classList.contains("hidden")) dismissFinalRound();
-    });
     els.notificationReminders.addEventListener("change", () => {
       state.notificationsEnabled = els.notificationReminders.checked;
       // Start at the next target instead of replaying an earlier due target.
@@ -2092,7 +2108,11 @@ dialog::backdrop {
       state.notificationSound = els.notificationSound.checked;
       saveState();
       if (state.notificationSound) playNotificationSound();
-      else finalRoundUrgencyCue.stop();
+    });
+    els.finalRoundMusic.addEventListener("change", () => {
+      state.finalRoundMusic = els.finalRoundMusic.checked;
+      saveState();
+      if (!state.finalRoundMusic) finalRoundUrgencyCue.stop();
     });
     els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
     els.planBtn.addEventListener("click", () => {
