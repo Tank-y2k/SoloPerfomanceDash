@@ -769,6 +769,14 @@ dialog::backdrop {
   font-size: 0.82rem;
 }
 
+.import-textarea { min-height: 250px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.import-preview { display: grid; gap: 8px; }
+.import-preview-row { display: grid; grid-template-columns: minmax(130px, 1fr) auto; gap: 12px; align-items: center; }
+.import-preview-row span:last-child { color: var(--muted); font-variant-numeric: tabular-nums; }
+.import-message { margin: 0; }
+.import-message.error { color: var(--danger); }
+.import-message.success { color: var(--success); }
+
 @media (max-width: 760px) {
   .app-shell { width: min(100% - 20px, 1500px); padding-top: 14px; }
   .topbar, .grid { grid-template-columns: 1fr; display: grid; }
@@ -818,6 +826,7 @@ dialog::backdrop {
           <button class="btn" id="settingsBtn">Queue Settings</button>
           <button class="btn" id="notificationsBtn">Notifications</button>
           <button class="btn" id="planBtn">Schedule</button>
+          <button class="btn" id="scheduleImporterBtn">Import Schedule</button>
           <button class="btn" id="snapshotBtn">Save Current Plan</button>
           <button class="btn warning" id="endDayBtn">End Day Review</button>
           <button class="btn" id="completedAppsBtn">Completed Apps</button>
@@ -970,6 +979,25 @@ dialog::backdrop {
       <p class="subtle">Correct a completion’s time or queue, or delete mistaken entries. Changing the time automatically selects the productive queue scheduled at that time.</p>
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
+  </dialog>  <dialog id="scheduleImporterDialog">
+    <form method="dialog" class="modal-inner stack" id="scheduleImporterForm">
+      <div class="modal-header">
+        <h2>Schedule Importer</h2>
+        <button class="btn small" value="close">Close</button>
+      </div>
+      <p class="subtle">Paste one complete day from the scheduling system. Review the activities below before replacing today’s plan.</p>
+      <div class="field">
+        <label for="scheduleImportText">Copied schedule</label>
+        <textarea class="import-textarea" id="scheduleImportText" placeholder="Sat 29th, Aug&#10;11:00 - 19:30 Shift&#10;Team Briefings&#10;11:00 - 11:15"></textarea>
+      </div>
+      <div class="row">
+        <button class="btn" id="previewScheduleImportBtn" type="button">Preview import</button>
+        <button class="btn primary" id="applyScheduleImportBtn" type="button" disabled>Replace today’s plan</button>
+      </div>
+      <p class="import-message subtle" id="scheduleImportMessage" role="status" aria-live="polite">Nothing parsed yet.</p>
+      <section class="panel-soft import-preview" id="scheduleImportPreview" aria-label="Import preview"></section>
+      <p class="footer-note">Unrecognised activities are saved as non-productive queue options. Repeated copies of the same activity and time are imported only once.</p>
+    </form>
   </dialog>  <dialog id="planDialog" class="schedule-modal">
     <form method="dialog" class="modal-inner stack" id="planForm">
       <div class="modal-header">
@@ -1063,6 +1091,13 @@ dialog::backdrop {
       finalRoundDetail: document.getElementById("finalRoundDetail"),
       dismissFinalRoundBtn: document.getElementById("dismissFinalRoundBtn"),
       planBtn: document.getElementById("planBtn"),
+      scheduleImporterBtn: document.getElementById("scheduleImporterBtn"),
+      scheduleImporterDialog: document.getElementById("scheduleImporterDialog"),
+      scheduleImportText: document.getElementById("scheduleImportText"),
+      previewScheduleImportBtn: document.getElementById("previewScheduleImportBtn"),
+      applyScheduleImportBtn: document.getElementById("applyScheduleImportBtn"),
+      scheduleImportMessage: document.getElementById("scheduleImportMessage"),
+      scheduleImportPreview: document.getElementById("scheduleImportPreview"),
       snapshotBtn: document.getElementById("snapshotBtn"),
       endDayBtn: document.getElementById("endDayBtn"),
       exportCsvBtn: document.getElementById("exportCsvBtn"),
@@ -2067,6 +2102,109 @@ dialog::backdrop {
         .replaceAll("'", "&#039;");
     }
 
+    const IMPORT_TIME_RANGE = /^(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})(?:\s+Shift)?$/i;
+    let pendingScheduleImport = null;
+
+    function canonicalImportedActivityName(name) {
+      const compact = name.trim().replace(/\s+/g, " ");
+      const aliases = {
+        "team briefings": TEAM_BRIEFING_NAME,
+        "team briefing": TEAM_BRIEFING_NAME,
+        "bca startup": "Startup",
+        "bca established": "Established",
+        "bca resubs": "Resubmissions",
+        "bca resubmissions": "Resubmissions"
+      };
+      return aliases[compact.toLowerCase()] || compact;
+    }
+
+    function parseScheduleImport(text) {
+      const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+      if (lines.length < 3) throw new Error("Paste a date, a shift, and at least one activity.");
+      const shiftMatch = lines[1].match(IMPORT_TIME_RANGE);
+      if (!shiftMatch || !/\bshift\s*$/i.test(lines[1])) throw new Error("The second row must contain the shift time, for example 11:00 - 19:30 Shift.");
+      const normaliseTime = value => value.replace(/^(\d):/, "0$1:");
+      const shiftStart = normaliseTime(shiftMatch[1]);
+      const shiftEnd = normaliseTime(shiftMatch[2]);
+      if (minutesFromTime(shiftEnd) <= minutesFromTime(shiftStart)) throw new Error("The imported shift end must be after its start.");
+
+      const segments = [];
+      const duplicateKeys = new Set();
+      let duplicateCount = 0;
+      for (let index = 2; index < lines.length; index += 1) {
+        const timing = lines[index].match(IMPORT_TIME_RANGE);
+        if (!timing) continue;
+        const nameLine = lines[index - 1];
+        if (!nameLine || IMPORT_TIME_RANGE.test(nameLine)) continue;
+        const name = canonicalImportedActivityName(nameLine);
+        const start = normaliseTime(timing[1]);
+        const end = normaliseTime(timing[2]);
+        const startMinutes = minutesFromTime(start);
+        const endMinutes = minutesFromTime(end);
+        if (endMinutes <= startMinutes || startMinutes < minutesFromTime(shiftStart) || endMinutes > minutesFromTime(shiftEnd)) throw new Error(`${name} has a time outside the imported shift.`);
+        const key = `${name.toLowerCase()}|${start}|${end}`;
+        if (duplicateKeys.has(key)) {
+          duplicateCount += 1;
+          continue;
+        }
+        duplicateKeys.add(key);
+        segments.push({ name, start, end });
+      }
+      if (!segments.length) throw new Error("No activities followed by time ranges were found.");
+      segments.sort((a, b) => minutesFromTime(a.start) - minutesFromTime(b.start));
+      const startKeys = new Set();
+      if (segments.some(segment => startKeys.has(segment.start) || !startKeys.add(segment.start))) throw new Error("Different activities begin at the same time. Remove the conflicting copy and try again.");
+      return { dateLabel: lines[0], shiftStart, shiftEnd, segments, duplicateCount };
+    }
+
+    function findImportedQueue(name) {
+      return state.queues.find(queue => queue.name.trim().toLowerCase() === name.trim().toLowerCase());
+    }
+
+    function previewScheduleImport() {
+      try {
+        pendingScheduleImport = parseScheduleImport(els.scheduleImportText.value);
+        const unknown = [...new Set(pendingScheduleImport.segments.filter(segment => !findImportedQueue(segment.name)).map(segment => segment.name))];
+        els.scheduleImportPreview.innerHTML = `
+          <strong>${escapeHtml(pendingScheduleImport.dateLabel)} · ${pendingScheduleImport.shiftStart}–${pendingScheduleImport.shiftEnd}</strong>
+          ${pendingScheduleImport.segments.map(segment => `<div class="import-preview-row"><span>${escapeHtml(segment.name)}${findImportedQueue(segment.name) ? "" : ' <span class="pill">New · non-productive</span>'}</span><span>${segment.start}–${segment.end}</span></div>`).join("")}
+        `;
+        const duplicateNote = pendingScheduleImport.duplicateCount ? ` ${pendingScheduleImport.duplicateCount} duplicate ${pendingScheduleImport.duplicateCount === 1 ? "copy was" : "copies were"} ignored.` : "";
+        const unknownNote = unknown.length ? ` ${unknown.length} new non-productive ${unknown.length === 1 ? "option" : "options"} will be added.` : "";
+        els.scheduleImportMessage.textContent = `${pendingScheduleImport.segments.length} activities ready.${unknownNote}${duplicateNote}`;
+        els.scheduleImportMessage.className = "import-message success";
+        els.applyScheduleImportBtn.disabled = false;
+      } catch (error) {
+        pendingScheduleImport = null;
+        els.scheduleImportPreview.innerHTML = "";
+        els.scheduleImportMessage.textContent = error.message;
+        els.scheduleImportMessage.className = "import-message error";
+        els.applyScheduleImportBtn.disabled = true;
+      }
+    }
+
+    function applyScheduleImport() {
+      if (!pendingScheduleImport) return;
+      const importedSegments = pendingScheduleImport.segments.map(segment => {
+        let queue = findImportedQueue(segment.name);
+        if (!queue) {
+          queue = { id: crypto.randomUUID(), name: segment.name, rate: 0, color: "#71717a", departmentId: null };
+          state.queues.push(queue);
+        }
+        return { id: crypto.randomUUID(), queueId: queue.id, start: segment.start };
+      });
+      state.shiftStart = pendingScheduleImport.shiftStart;
+      state.shiftEnd = pendingScheduleImport.shiftEnd;
+      state.segments = importedSegments;
+      state.startingSnapshot = null;
+      state.lastNotifiedSlot = null;
+      state.lastFinalRoundSegment = null;
+      logActivity("plan", `Imported ${importedSegments.length} activities from ${pendingScheduleImport.dateLabel}.`);
+      renderAll();
+      els.scheduleImporterDialog.close();
+      pendingScheduleImport = null;
+    }
+
     document.addEventListener("click", event => {
       if (!els.topMenuPanel.contains(event.target) && event.target !== els.menuBtn) {
         els.topMenuPanel.classList.add("hidden");
@@ -2193,6 +2331,16 @@ dialog::backdrop {
       pauseNotificationsForScheduleEdit();
       els.planDialog.showModal();
     });
+    els.scheduleImporterBtn.addEventListener("click", () => {
+      pendingScheduleImport = null;
+      els.applyScheduleImportBtn.disabled = true;
+      els.scheduleImportMessage.textContent = "Nothing parsed yet.";
+      els.scheduleImportMessage.className = "import-message subtle";
+      els.scheduleImportPreview.innerHTML = "";
+      els.scheduleImporterDialog.showModal();
+    });
+    els.previewScheduleImportBtn.addEventListener("click", previewScheduleImport);
+    els.applyScheduleImportBtn.addEventListener("click", applyScheduleImport);
     els.planDialog.addEventListener("close", syncNotificationCursor);
     els.addQueueBtn.addEventListener("click", addQueue);
     els.addDepartmentBtn.addEventListener("click", addDepartment);
