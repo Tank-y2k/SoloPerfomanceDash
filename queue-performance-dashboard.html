@@ -365,7 +365,7 @@ input:focus, select:focus, textarea:focus {
 .day-detail-modal { width: min(1180px, calc(100vw - 28px)); }
 .day-detail-modal .modal-inner { max-height: min(88vh, 920px); overflow: auto; }
 .day-detail-modal .panel-soft { overflow-x: auto; }
-.detail-table { width: 100%; min-width: 720px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.detail-table { width: 100%; min-width: 900px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .detail-table th, .detail-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: right; }
 .detail-table th:first-child, .detail-table td:first-child { text-align: left; }
 .detail-table th { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
@@ -2093,11 +2093,20 @@ dialog::backdrop {
       const productiveSegments = segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
       const segmentIds = new Set(productiveSegments.map(segment => segment.id));
       const queueIds = new Set(productiveSegments.map(segment => segment.queueId));
+      const now = nowDate();
       const minutes = productiveSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0);
+      const elapsedHours = productiveSegments.reduce((sum, segment) => sum + getElapsedSegmentHours(segment), 0);
       const plans = productiveSegments.map(segment => getSegmentTargetPlan(segment));
       const rawExpected = plans.reduce((sum, plan) => sum + plan.rawExpectedApps, 0);
+      const currentExpected = productiveSegments.reduce((sum, segment) => {
+        return sum + getElapsedSegmentHours(segment) * Number(getQueue(segment.queueId)?.rate || 0);
+      }, 0);
       const expectedApps = plans.reduce((sum, plan) => sum + plan.expectedApps, 0);
       const completed = state.completions.filter(app => exactSegments ? segmentIds.has(app.segmentId) : queueIds.has(app.queueId)).length;
+      const currentCompleted = state.completions.filter(app => {
+        if (new Date(app.at) > now) return false;
+        return exactSegments ? segmentIds.has(app.segmentId) : queueIds.has(app.queueId);
+      }).length;
       return {
         minutes,
         rawExpected,
@@ -2105,7 +2114,9 @@ dialog::backdrop {
         completed,
         adjusted: plans.reduce((sum, plan) => sum + (plan.targetAdjustment === -1 ? 1 : 0), 0),
         predictedEfficiency: rawExpected > 0 ? (expectedApps / rawExpected) * 100 : null,
-        expectedAppsPerHour: minutes > 0 ? expectedApps / (minutes / 60) : null
+        expectedAppsPerHour: minutes > 0 ? expectedApps / (minutes / 60) : null,
+        currentAppsPerHour: elapsedHours > 0 ? currentCompleted / elapsedHours : null,
+        currentEfficiency: currentExpected > 0 ? (currentCompleted / currentExpected) * 100 : null
       };
     }
 
@@ -2120,11 +2131,12 @@ dialog::backdrop {
         <td><div class="detail-name">${color ? `<span class="swatch" style="--queue-color:${color}"></span>` : ""}<span>${escapeHtml(name)}<br><span class="detail-sub">${escapeHtml(sub)}</span></span>${modifier}</div></td>
         <td>${formatHoursMinutes(summary.minutes / 60)}</td><td>${summary.completed}</td><td>${summary.expectedApps}</td>
         <td>${detailMetric(summary.expectedAppsPerHour)}</td><td>${detailMetric(summary.predictedEfficiency, "%")}</td>
+        <td>${detailMetric(summary.currentAppsPerHour)}</td><td>${detailMetric(summary.currentEfficiency, "%")}</td>
       </tr>`;
     }
 
     function renderDetailTable(rows) {
-      return `<div class="panel-soft"><table class="detail-table"><thead><tr><th>Scope</th><th>Time</th><th>Done</th><th>Expected apps</th><th>Expected apps/hr</th><th>Predicted efficiency</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      return `<div class="panel-soft"><table class="detail-table"><thead><tr><th>Scope</th><th>Time</th><th>Done</th><th>Expected apps</th><th>Expected apps/hr</th><th>Predicted efficiency</th><th>Current apps/hr</th><th>Current efficiency</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
 
     function showDayDetails() {
@@ -2148,13 +2160,15 @@ dialog::backdrop {
           <article class="stat"><div class="value">${wholeDay.expectedApps}</div><div class="label">Expected apps</div></article>
           <article class="stat ${wholeDay.predictedEfficiency >= 100 ? "good" : "warn"}"><div class="value">${detailMetric(wholeDay.predictedEfficiency, "%")}</div><div class="label">Predicted efficiency</div></article>
           <article class="stat"><div class="value">${detailMetric(wholeDay.expectedAppsPerHour)}</div><div class="label">Expected apps/hr</div></article>
+          <article class="stat"><div class="value">${detailMetric(wholeDay.currentAppsPerHour)}</div><div class="label">Current apps/hr</div></article>
+          <article class="stat"><div class="value">${detailMetric(wholeDay.currentEfficiency, "%")}</div><div class="label">Current efficiency</div></article>
           <article class="stat"><div class="value">${formatHoursMinutes(nonProductiveMinutes / 60)}</div><div class="label">Non-productive time</div></article>
         </section>
         <p class="subtle">Predicted efficiency compares each recalculated whole-app target with its unrounded queue-rate expectation. Rounding up normally makes it at least 100%; manual target reductions can lower it.</p>
         <section><h3 class="detail-section-heading">Whole day</h3>${renderDetailTable(renderDetailRow("All departments", `${productive.length} productive segments`, productive))}</section>
-        <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="6" class="subtle">No productive departments scheduled.</td></tr>')}</section>
-        <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="6" class="subtle">No productive queues scheduled.</td></tr>')}</section>
-        <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="6" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
+        <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="8" class="subtle">No productive departments scheduled.</td></tr>')}</section>
+        <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="8" class="subtle">No productive queues scheduled.</td></tr>')}</section>
+        <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="8" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
       els.dayDetailDialog.showModal();
     }
 
