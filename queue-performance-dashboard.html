@@ -1531,10 +1531,12 @@ dialog::backdrop {
 
     function dismissFinalRound() {
       clearTimeout(finalRoundTimeout);
+      finalRoundTimeout = null;
       els.finalRound.classList.add("hidden");
     }
 
     function checkFinalRound(slot, now) {
+      if (els.planDialog.open) return;
       if (!slot || slot.appNumber !== slot.expectedApps) return;
       if (now < slot.previousAt || getPlannedSegmentAtNow()?.id !== slot.segment.id) return;
       const segmentKey = `${localDateKey()}|${slot.segment.id}`;
@@ -1579,7 +1581,10 @@ dialog::backdrop {
       els.notificationToastMessage.textContent = message;
       els.notificationToast.classList.remove("hidden");
       clearTimeout(toastTimeout);
-      toastTimeout = setTimeout(() => els.notificationToast.classList.add("hidden"), 7000);
+      toastTimeout = setTimeout(() => {
+        els.notificationToast.classList.add("hidden");
+        toastTimeout = null;
+      }, 7000);
     }
 
     function sendNotification(title, message) {
@@ -1588,7 +1593,9 @@ dialog::backdrop {
     }
 
     function checkDueNotifications() {
-      if (!state.notificationsEnabled) return;
+      // Schedule controls update live state while the dialog is open. Do not let
+      // temporary edit values create reminders before validation has succeeded.
+      if (!state.notificationsEnabled || els.planDialog.open) return;
       const now = nowDate();
       const currentSegment = getSegmentAtDate(now, true);
       const dueSlots = getScheduledCompletionSlots().filter(slot => slot.segment.id === currentSegment?.id && slot.at <= now);
@@ -1599,6 +1606,34 @@ dialog::backdrop {
       state.lastNotifiedSlot = slotKey;
       saveState();
       sendNotification("App target due", `${latest.queue.name} target reached at ${formatClock(latest.at.toISOString())}.`);
+    }
+
+    function syncNotificationCursor() {
+      const now = nowDate();
+      const currentSegment = getSegmentAtDate(now, true);
+      const currentSlots = getScheduledCompletionSlots()
+        .filter(slot => slot.segment.id === currentSegment?.id);
+      const latest = currentSlots
+        .filter(slot => slot.at <= now)
+        .at(-1);
+      const next = currentSlots.find(slot => slot.at > now);
+
+      // Targets that became due while editing are considered seen. Null re-arms
+      // the cursor when none are due, so the next distinct slot can always fire.
+      state.lastNotifiedSlot = latest
+        ? `${localDateKey()}|${latest.segment.id}|${latest.at.toISOString()}`
+        : null;
+      if (next?.appNumber === next?.expectedApps && now >= next.previousAt) {
+        state.lastFinalRoundSegment = `${localDateKey()}|${next.segment.id}`;
+      }
+      saveState();
+    }
+
+    function pauseNotificationsForScheduleEdit() {
+      clearTimeout(toastTimeout);
+      toastTimeout = null;
+      els.notificationToast.classList.add("hidden");
+      dismissFinalRound();
     }
 
     function renderTimer() {
@@ -1980,7 +2015,12 @@ dialog::backdrop {
     });
     els.notificationReminders.addEventListener("change", () => {
       state.notificationsEnabled = els.notificationReminders.checked;
-      saveState();
+      // Start at the next target instead of replaying an earlier due target.
+      if (state.notificationsEnabled) syncNotificationCursor();
+      else {
+        state.lastNotifiedSlot = null;
+        saveState();
+      }
     });
     els.notificationSound.addEventListener("change", () => {
       state.notificationSound = els.notificationSound.checked;
@@ -1988,7 +2028,11 @@ dialog::backdrop {
       if (state.notificationSound) playNotificationSound();
     });
     els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
-    els.planBtn.addEventListener("click", () => els.planDialog.showModal());
+    els.planBtn.addEventListener("click", () => {
+      pauseNotificationsForScheduleEdit();
+      els.planDialog.showModal();
+    });
+    els.planDialog.addEventListener("close", syncNotificationCursor);
     els.addQueueBtn.addEventListener("click", addQueue);
     els.addDepartmentBtn.addEventListener("click", addDepartment);
     els.addSegmentBtn.addEventListener("click", addSegment);
