@@ -38,7 +38,7 @@ button { border: 0; cursor: pointer; color: inherit; }
 a.btn { text-decoration: none; }
 
 .app-shell {
-  width: min(1500px, calc(100% - 32px));
+  width: min(560px, calc(100% - 24px));
   margin: 0 auto;
   height: 100%;
   padding: 16px 0;
@@ -340,23 +340,23 @@ input:focus, select:focus, textarea:focus {
 }
 .tracker-facts {
   display: grid;
-  grid-template-columns: minmax(160px, 1.2fr) repeat(4, minmax(100px, 1fr));
+  grid-template-columns: minmax(105px, 1.15fr) repeat(3, minmax(82px, 1fr));
   margin: 0;
   border-top: 1px solid rgba(255,255,255,.12);
 }
 .performance-row-label {
   display: grid;
   place-content: center start;
-  gap: 3px;
   padding: 14px 20px;
   text-align: left;
-  color: var(--accent);
+  color: var(--text);
   font-size: .8rem;
   font-weight: 800;
   letter-spacing: .06em;
   text-transform: uppercase;
 }
-.performance-row-label small { color: var(--muted); font-size: .65rem; letter-spacing: .08em; }
+.performance-row-label.active { color: var(--accent); }
+.performance-empty { grid-column: 1 / -1; margin: 0; padding: 20px; color: var(--muted); font-size: .8rem; }
 .tracker-fact {
   display: grid;
   gap: 5px;
@@ -973,8 +973,8 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
   .timer-display { font-size: clamp(3rem, 15vw, 4.5rem); }
   .tracker-primary-facts { margin-top: 20px; }
   .tracker-primary-facts .tracker-fact { min-width: 0; padding: 6px 12px; }
-  .performance-card { overflow-x: auto; }
-  .tracker-facts { min-width: 620px; }
+  .performance-card { overflow: hidden; }
+  .tracker-facts { min-width: 0; grid-template-columns: minmax(72px, 1.05fr) repeat(3, minmax(64px, 1fr)); }
   .tracker-fact { padding: 12px 8px; }
   .performance-row-label { padding: 12px; }
   .stats-grid, .stats-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
@@ -1064,18 +1064,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       <div class="timer-progress" aria-label="Progress to next target"><div class="timer-progress-fill" id="timerProgress"></div></div>
       <section class="performance-card" aria-label="Your current performance">
         <div class="performance-title">Your performance</div>
-        <div class="tracker-facts">
-          <div class="performance-row-label">You <small>Department today</small></div>
-          <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayEfficiencyLabel">Efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
-          <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
-          <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAhtLabel">AHT</span><span class="tracker-fact-value" id="dayAht">--</span></div>
-          <div class="tracker-fact day-score"><span class="tracker-fact-label">Apps</span><span class="tracker-fact-value" id="dayCompleted">--</span></div>
-          <div class="performance-row-label">You <small>This segment</small></div>
-          <div class="tracker-fact"><span class="tracker-fact-label">Efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
-          <div class="tracker-fact"><span class="tracker-fact-label">Apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
-          <div class="tracker-fact"><span class="tracker-fact-label">AHT</span><span class="tracker-fact-value" id="segmentAht">--</span></div>
-          <div class="tracker-fact segment-total"><span class="tracker-fact-label">Apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
-        </div>
+        <div class="tracker-facts" id="performanceRows"></div>
       </section>
     </div>
     <div class="outcome-actions" aria-label="Record application outcome">
@@ -1426,17 +1415,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       timerEtc: document.getElementById("timerEtc"),
       timerTarget: document.getElementById("timerTarget"),
       currentDepartment: document.getElementById("currentDepartment"),
-      dayEfficiency: document.getElementById("dayEfficiency"),
-      dayEfficiencyLabel: document.getElementById("dayEfficiencyLabel"),
-      segmentEfficiency: document.getElementById("segmentEfficiency"),
-      dayAppsPerHour: document.getElementById("dayAppsPerHour"),
-      dayAppsPerHourLabel: document.getElementById("dayAppsPerHourLabel"),
-      dayAht: document.getElementById("dayAht"),
-      dayAhtLabel: document.getElementById("dayAhtLabel"),
-      dayCompleted: document.getElementById("dayCompleted"),
-      segmentAppsPerHour: document.getElementById("segmentAppsPerHour"),
-      segmentAht: document.getElementById("segmentAht"),
-      segmentCompleted: document.getElementById("segmentCompleted"),
+      performanceRows: document.getElementById("performanceRows"),
       timerProgress: document.getElementById("timerProgress"),
       completionHistory: document.getElementById("completionHistory"),
       dayTimeline: document.getElementById("dayTimeline"),
@@ -1730,23 +1709,32 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
     function renderPerformance() {
       const segment = getCurrentSegment();
       const queue = segment ? getQueue(segment.queueId) : null;
-      const department = getDepartment(queue?.departmentId);
-      const day = getRunningPerformance(null, department?.id || null);
-      const current = segment && isProductiveQueue(queue) ? getRunningPerformance(segment) : null;
+      const plannedDepartmentIds = new Set(state.segments
+        .map(item => getQueue(item.queueId))
+        .filter(isProductiveQueue)
+        .map(item => item.departmentId));
+      const plannedDepartments = state.departments.filter(department => plannedDepartmentIds.has(department.id));
+      const rows = plannedDepartments.map(department => ({
+        label: department.name,
+        performance: getRunningPerformance(null, department.id),
+        active: department.id === queue?.departmentId
+      }));
+
+      if (segment && isProductiveQueue(queue)) {
+        rows.push({
+          label: "Segment",
+          performance: getRunningPerformance(segment),
+          active: true
+        });
+      }
+
       els.currentDepartment.textContent = getDepartment(queue?.departmentId)?.name || "--";
-      els.dayEfficiencyLabel.textContent = "Efficiency";
-      els.dayAppsPerHourLabel.textContent = "Apps/hr";
-      els.dayAhtLabel.textContent = "AHT";
-      els.dayEfficiency.textContent = formatMetric(day.efficiency, "%");
-      els.dayAppsPerHour.textContent = formatMetric(day.appsPerHour);
-      els.dayAht.textContent = formatAht(day.appsPerHour);
-      els.dayCompleted.textContent = state.completions.filter(app => !department || getQueue(app.queueId)?.departmentId === department.id).length;
-      els.segmentEfficiency.textContent = formatMetric(current?.efficiency, "%");
-      els.segmentAppsPerHour.textContent = formatMetric(current?.appsPerHour);
-      els.segmentAht.textContent = formatAht(current?.appsPerHour);
-      const segmentCompleted = segment ? state.completions.filter(app => app.segmentId === segment.id).length : 0;
-      const segmentTarget = segment && isProductiveQueue(queue) ? getSegmentExpectedWholeApps(segment) : 0;
-      els.segmentCompleted.textContent = segment && isProductiveQueue(queue) ? `${segmentCompleted}/${segmentTarget}` : "--";
+      els.performanceRows.innerHTML = rows.length ? rows.map(row => `
+        <div class="performance-row-label${row.active ? " active" : ""}">${escapeHtml(row.label)}</div>
+        <div class="tracker-fact${row.active ? " day-score" : ""}"><span class="tracker-fact-label">Efficiency</span><span class="tracker-fact-value">${formatMetric(row.performance.efficiency, "%")}</span></div>
+        <div class="tracker-fact${row.active ? " day-score" : ""}"><span class="tracker-fact-label">Apps/hr</span><span class="tracker-fact-value">${formatMetric(row.performance.appsPerHour)}</span></div>
+        <div class="tracker-fact${row.active ? " day-score" : ""}"><span class="tracker-fact-label">AHT</span><span class="tracker-fact-value">${formatAht(row.performance.appsPerHour)}</span></div>
+      `).join("") : '<p class="performance-empty">No productive departments planned</p>';
     }
 
     function renderDepartments() {
