@@ -873,12 +873,21 @@ dialog:not(.popup-dialog) .modal-inner {
   margin: 0 auto;
   padding: 28px 0 56px;
 }
+dialog:not(.popup-dialog) .modal-inner.stack {
+  align-content: start;
+}
 dialog:not(.popup-dialog) .modal-header {
   position: sticky;
   top: 0;
   z-index: 5;
-  padding: 12px 0 16px;
+  padding: 12px 76px 16px 0;
   background: linear-gradient(var(--bg) 75%, transparent);
+}
+dialog:not(.popup-dialog) .modal-header > .btn:last-child {
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 6;
 }
 dialog:not(.popup-dialog) .queue-list,
 dialog:not(.popup-dialog) .segment-list,
