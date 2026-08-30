@@ -21,7 +21,7 @@ This document catalogues the Queue Performance Dashboard's persisted data, recor
 | `queues` | `Queue[]` | Built-in and five productive queues | Available productive queues and non-productive activities. |
 | `shiftStart` | `string` (`HH:MM`) | `11:00` | Inclusive start of the planned shift. |
 | `shiftEnd` | `string` (`HH:MM`) | `19:30` | End of the planned shift and end of the last segment. Must follow `shiftStart`. |
-| `segments` | `Segment[]` | Team briefing at `11:00` | Today's planned activities. |
+| `segments` | `Segment[]` | Team Briefings at `11:00` | Today's planned activities. |
 | `completions` | `Completion[]` | `[]` | Applications recorded during the current day. |
 | `activityLog` | `ActivityEntry[]` | `[]` | Human-readable audit events for plan, setting, completion, snapshot, and export actions. |
 | `startingSnapshot` | `Snapshot \| null` | `null` | Saved start-of-day plan used by End Day Review. |
@@ -57,7 +57,7 @@ This document catalogues the Queue Performance Dashboard's persisted data, recor
 | `locked` | boolean | No | When true, the built-in name/rate cannot be changed and the queue cannot be deleted; colour remains editable. |
 | `departmentId` | UUID string or `null` | Yes | Department for a productive queue; `null` for a zero-rate activity. |
 
-Built-in locked queues are **Non-productive** (`#71717a`), **Off queue** (`#f59e0b`), and **Team briefing** (`#0ea5e9`), all with rate `0`. Default productive queues and rates are Startup `2.29`, Established `2.29`, Resubmissions `2.63`, Sole Trader `2.71`, and Sole Trader Resubmissions `2.75` apps/hour.
+Built-in locked queues are **Non-productive** (`#71717a`), **Off queue** (`#f59e0b`), and **Team Briefings** (`#0ea5e9`), all with rate `0`. Default productive queues and rates are Startup `2.29`, Established `2.29`, Resubmissions `2.63`, Sole Trader `2.71`, and Sole Trader Resubmissions `2.75` apps/hour.
 
 ### `Segment`
 
@@ -128,11 +128,11 @@ Segments must start within the shift and cannot have duplicate start times. Thei
 | `STORAGE_KEY` | `queuePerformanceDashboard.v2` | Local-storage namespace. |
 | `NON_PRODUCTIVE_NAME` | `Non-productive` | Built-in activity identity. |
 | `OFF_QUEUE_NAME` | `Off queue` | Built-in activity identity. |
-| `TEAM_BRIEFING_NAME` | `Team briefing` | Built-in activity identity. |
+| `TEAM_BRIEFINGS_NAME` | `Team Briefings` | Built-in activity identity. |
 | `BASE_TITLE` | `Queue Performance Dashboard` | Base browser-tab title. |
 | `DEFAULT_SHIFT_START` | `11:00` | Shift start after reset. |
 | `DEFAULT_SHIFT_END` | `19:30` | Shift end after reset. |
-| `TEAM_BRIEFING_MINUTES` | `15` | Default spacing after a briefing when adding the next activity. |
+| `TEAM_BRIEFINGS_MINUTES` | `15` | Default spacing after a briefing when adding the next activity. |
 
 ## Derived values
 

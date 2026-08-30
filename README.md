@@ -44,7 +44,7 @@ For each productive schedule segment, the dashboard calculates the raw target as
 
 A positive raw target is rounded **up** to the next whole application. A user can reduce that rounded segment target by one (never below zero) from the day timeline. Target slots are distributed evenly through the segment. Like a runner’s or drummer’s pacing track, the timer continuously counts to the next scheduled beat and then moves on to the following one; missed beats do not accumulate.
 
-Queues with a rate of zero are non-productive and create no target slots. Built-in **Non-productive**, **Off queue**, and **Team briefing** activities are locked and always have a zero rate.
+Queues with a rate of zero are non-productive and create no target slots. Built-in **Non-productive**, **Off queue**, and **Team Briefings** activities are locked and always have a zero rate.
 
 The live tracker also reports current-department and current-segment apps/hour and efficiency. Department performance is isolated, so work recorded in AA/PCA does not alter BCA efficiency (or vice versa). Efficiency compares recorded completions with the unrounded target earned over relevant productive time elapsed so far, so it updates continuously rather than waiting for a whole target slot.
 
