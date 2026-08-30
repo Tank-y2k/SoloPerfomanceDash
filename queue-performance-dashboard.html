@@ -1091,7 +1091,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
 </head>
 <body>
   <main class="app-shell">
-    <header class="topbar">
+    <header class="topbar" id="topbar">
       <section class="top-actions">
         <button class="btn menu-trigger" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="topMenuPanel">☰</button>
         <div class="menu-panel hidden" id="topMenuPanel">
@@ -1416,6 +1416,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
     ensureTeamBriefingsQueue();
 
     const els = {
+      topbar: document.getElementById("topbar"),
       menuBtn: document.getElementById("menuBtn"),
       topMenuPanel: document.getElementById("topMenuPanel"),
       dashboardBtn: document.getElementById("dashboardBtn"),
@@ -2595,20 +2596,32 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       return workspaceMedia.matches;
     }
 
+    function restoreMenuToDashboard() {
+      document.querySelector(".app-shell").prepend(els.topbar);
+    }
+
     function closeWorkspaceDialogs(except = null) {
       if (els.planDialog.open && els.planDialog !== except && !validateScheduleBeforeClose()) return false;
       workspaceDialogs.forEach(id => {
         const dialog = document.getElementById(id);
         if (dialog !== except && dialog?.open) dialog.close();
       });
+      if (!except) restoreMenuToDashboard();
       return true;
     }
 
     function openWorkspaceDialog(dialog) {
       if (!closeWorkspaceDialogs(dialog)) return;
-      if (dialog.open) return;
-      dialog.show();
+      if (!dialog.open) dialog.show();
+      dialog.append(els.topbar);
     }
+
+    workspaceDialogs.forEach(id => {
+      document.getElementById(id).addEventListener("close", () => {
+        const hasOpenWorkspace = workspaceDialogs.some(dialogId => document.getElementById(dialogId).open);
+        if (!hasOpenWorkspace) restoreMenuToDashboard();
+      });
+    });
 
     function showDayDetails() {
       const productive = state.segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
