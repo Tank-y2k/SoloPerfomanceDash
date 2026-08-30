@@ -44,7 +44,7 @@ For each productive schedule segment, the dashboard calculates the raw target as
 
 A positive raw target is rounded **up** to the next whole application. A user can reduce that rounded segment target by one (never below zero) from the day timeline. Target slots are distributed evenly through the segment. Like a runner’s or drummer’s pacing track, the timer continuously counts to the next scheduled beat and then moves on to the following one; missed beats do not accumulate.
 
-The scheduled-app list retains earlier targets. Completed targets show their actual completion time, while incomplete targets show their ETC. It automatically positions the next incomplete target at the top, including immediately after an application is completed ahead of its ETC.
+The scheduled-app list retains earlier targets. Completed targets show their actual completion time, while incomplete targets show their ETC. It positions an active non-productive activity at the top, then advances to the next incomplete target when that activity ends. During productive time, the view advances only when an application is submitted, including when it is completed ahead of its ETC.
 
 Queues with a rate of zero are non-productive and create no target slots. Built-in **Non-productive**, **Off queue**, and **Team Briefings** activities are locked and always have a zero rate.
 
