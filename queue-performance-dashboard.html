@@ -641,7 +641,6 @@ input:focus, select:focus, textarea:focus {
 }
 
 .upcoming-app:last-child { border-bottom: 0; }
-.upcoming-app.elapsed { opacity: .48; }
 .upcoming-app-number { color: var(--muted); font-size: .75rem; font-weight: 800; }
 .upcoming-app-queue { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .upcoming-app-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 800; }
@@ -955,7 +954,7 @@ dialog::backdrop {
         <span class="pill expected-total" id="expectedAppsTotal" aria-label="0 apps expected">0</span>
       </div>
       <div class="day-timeline" id="dayTimeline"></div>
-      <h3>All apps today</h3>
+      <h3>Upcoming apps</h3>
       <div class="upcoming-apps" id="upcomingApps" aria-live="polite"></div>
     </section>
 
@@ -1689,15 +1688,17 @@ dialog::backdrop {
 
     function renderUpcomingApps() {
       const now = nowDate();
-      const daySlots = getScheduledCompletionSlots();
+      const upcomingSlots = getScheduledCompletionSlots()
+        .filter(slot => slot.at.getTime() > now.getTime());
 
-      // Show the complete day in one contained scroller, including breaks and
-      // other non-productive activities, so narrow layouts never need to move
-      // the document itself to reach the schedule.
+      // Keep every remaining target in one contained scroller, including
+      // current and upcoming non-productive activities, without retaining
+      // historical targets that are no longer useful for pacing.
       const nonProductiveSegments = getSortedSegments()
         .filter(segment => {
           const queue = getQueue(segment.queueId);
-          return !isProductiveQueue(queue);
+          const endsAt = getScheduleDateAtMinutes(getSegmentBounds(segment).end);
+          return !isProductiveQueue(queue) && endsAt.getTime() > now.getTime();
         })
         .map(segment => ({
           type: "activity",
@@ -1707,13 +1708,13 @@ dialog::backdrop {
         }));
 
       const items = [
-        ...daySlots.map((slot, index) => ({ type: "app", at: slot.at, slot, appIndex: index + 1 })),
+        ...upcomingSlots.map((slot, index) => ({ type: "app", at: slot.at, slot, appIndex: index + 1 })),
         ...nonProductiveSegments
       ].sort((a, b) => a.at.getTime() - b.at.getTime() || (a.type === "app" ? -1 : 1));
 
       els.upcomingApps.innerHTML = items.length
         ? items.map(item => item.type === "app" ? `
-            <div class="upcoming-app ${item.at <= now ? "elapsed" : ""}">
+            <div class="upcoming-app">
               <span class="upcoming-app-number">${item.appIndex}</span>
               <span class="upcoming-app-queue" title="${escapeHtml(item.slot.queue.name)}">${escapeHtml(item.slot.queue.name)}</span>
               <time class="upcoming-app-time" datetime="${item.at.toISOString()}">${formatClock(item.at.toISOString())}</time>
@@ -1725,7 +1726,7 @@ dialog::backdrop {
               <span class="upcoming-app-time">${item.segment.start}–${getSegmentEnd(item.segment)}</span>
             </div>
           `).join("")
-        : `<div class="upcoming-empty subtle">No apps are scheduled today.</div>`;
+        : `<div class="upcoming-empty subtle">No more apps are scheduled today.</div>`;
     }
 
     let toastTimeout;
