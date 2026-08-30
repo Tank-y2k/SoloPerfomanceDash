@@ -1085,6 +1085,27 @@ dialog::backdrop {
       <p class="subtle">Correct a completion’s time or queue, or delete mistaken entries. Changing the time automatically selects the productive queue scheduled at that time.</p>
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
+  </dialog>  <dialog id="offQueueCompletionDialog">
+    <form class="modal-inner stack" id="offQueueCompletionForm">
+      <div class="modal-header">
+        <h2>Record completed app</h2>
+        <button class="btn small" type="button" id="cancelOffQueueCompletionBtn">Cancel</button>
+      </div>
+      <p class="subtle">No productive queue is active. Choose where and when this app was completed.</p>
+      <div class="field">
+        <label for="offQueueCompletionDepartment">Department</label>
+        <select id="offQueueCompletionDepartment" required></select>
+      </div>
+      <div class="field">
+        <label for="offQueueCompletionQueue">Task / queue</label>
+        <select id="offQueueCompletionQueue" required></select>
+      </div>
+      <div class="field">
+        <label for="offQueueCompletionTime">Completed at</label>
+        <input id="offQueueCompletionTime" type="time" required />
+      </div>
+      <button class="btn primary" type="submit">Record app</button>
+    </form>
   </dialog>  <dialog id="scheduleImporterDialog">
     <form method="dialog" class="modal-inner stack" id="scheduleImporterForm">
       <div class="modal-header">
@@ -1215,6 +1236,12 @@ dialog::backdrop {
       planForm: document.getElementById("planForm"),
       completionDialog: document.getElementById("completionDialog"),
       completedAppsBtn: document.getElementById("completedAppsBtn"),
+      offQueueCompletionDialog: document.getElementById("offQueueCompletionDialog"),
+      offQueueCompletionForm: document.getElementById("offQueueCompletionForm"),
+      offQueueCompletionDepartment: document.getElementById("offQueueCompletionDepartment"),
+      offQueueCompletionQueue: document.getElementById("offQueueCompletionQueue"),
+      offQueueCompletionTime: document.getElementById("offQueueCompletionTime"),
+      cancelOffQueueCompletionBtn: document.getElementById("cancelOffQueueCompletionBtn"),
       newDayDialog: document.getElementById("newDayDialog"),
       newDayExportBtn: document.getElementById("newDayExportBtn"),
       newDayResetBtn: document.getElementById("newDayResetBtn"),
@@ -1781,6 +1808,7 @@ dialog::backdrop {
     let urgencyMusicSegmentKey = null;
 
     const ESCALATING_MUSIC_DURATION_MS = 30_000;
+    const FINAL_APP_SPLASH_VERSION = "cadence-v2";
 
     // An original, compact urgency cue for the final 30 seconds of any segment. Notes are
     // scheduled against the audio clock, so the rhythm stays musical even if
@@ -1884,7 +1912,7 @@ dialog::backdrop {
       if (els.planDialog.open) return;
       if (!slot || slot.appNumber !== slot.expectedApps) return;
       if (now < getFinalAppSplashStart(slot) || now >= slot.at || getPlannedSegmentAtNow()?.id !== slot.segment.id) return;
-      const segmentKey = `${localDateKey()}|${slot.segment.id}`;
+      const segmentKey = `${FINAL_APP_SPLASH_VERSION}|${localDateKey()}|${slot.segment.id}`;
       if (state.lastFinalRoundSegment === segmentKey) return;
 
       state.lastFinalRoundSegment = segmentKey;
@@ -2011,7 +2039,7 @@ dialog::backdrop {
         ? `${localDateKey()}|${latest.segment.id}|${latest.at.toISOString()}`
         : null;
       if (next?.appNumber === next?.expectedApps && now >= getFinalAppSplashStart(next)) {
-        state.lastFinalRoundSegment = `${localDateKey()}|${next.segment.id}`;
+        state.lastFinalRoundSegment = `${FINAL_APP_SPLASH_VERSION}|${localDateKey()}|${next.segment.id}`;
       }
       saveState();
     }
@@ -2038,7 +2066,7 @@ dialog::backdrop {
       const slots = getScheduledCompletionSlots();
       const currentSlots = plannedSegment ? slots.filter(slot => slot.segment.id === plannedSegment.id) : [];
       const nextSlot = currentSlots.find(slot => slot.at.getTime() > now.getTime());
-      checkFinalRound(nextSlot, now);
+      checkFinalRound(currentSlots.at(-1), now);
       if (!nextSlot) {
         els.timerDisplay.textContent = plannedQueue ? plannedQueue.name : "--:--";
         els.timerCaption.textContent = !plannedQueue
@@ -2125,11 +2153,67 @@ dialog::backdrop {
       if (shouldLog) logActivity("plan", "Sorted queue segments.");
     }
 
+    let pendingOffQueueOutcome = null;
+    let pendingOffQueueButton = null;
+
+    function renderOffQueueCompletionQueues() {
+      const departmentId = els.offQueueCompletionDepartment.value;
+      const queues = state.queues.filter(queue => isProductiveQueue(queue) && queue.departmentId === departmentId);
+      els.offQueueCompletionQueue.innerHTML = queues
+        .map(queue => `<option value="${queue.id}">${escapeHtml(queue.name)}</option>`)
+        .join("");
+    }
+
+    function openOffQueueCompletionDialog(outcome, button) {
+      const productiveDepartments = state.departments.filter(department => {
+        return state.queues.some(queue => isProductiveQueue(queue) && queue.departmentId === department.id);
+      });
+      if (!productiveDepartments.length) return alert("Add a productive queue before recording an app.");
+
+      pendingOffQueueOutcome = outcome;
+      pendingOffQueueButton = button;
+      els.offQueueCompletionDepartment.innerHTML = productiveDepartments
+        .map(department => `<option value="${department.id}">${escapeHtml(department.name)}</option>`)
+        .join("");
+      renderOffQueueCompletionQueues();
+      els.offQueueCompletionTime.value = formatLocalTimeInput(nowIso());
+      els.offQueueCompletionDialog.showModal();
+    }
+
+    function recordOffQueueCompletion() {
+      const queue = getQueue(els.offQueueCompletionQueue.value);
+      const [hours, minutes] = els.offQueueCompletionTime.value.split(":").map(Number);
+      const outcome = pendingOffQueueOutcome;
+      const outcomeButton = pendingOffQueueButton;
+      if (!outcome || !isProductiveQueue(queue)) return alert("Choose a productive task or queue.");
+      if (!Number.isInteger(hours) || !Number.isInteger(minutes)) return alert("Choose a valid completion time.");
+
+      const completedAt = nowDate();
+      completedAt.setHours(hours, minutes, 0, 0);
+      const scheduledSegment = getSegmentAtDate(completedAt);
+      const completion = {
+        id: crypto.randomUUID(),
+        at: completedAt.toISOString(),
+        queueId: queue.id,
+        segmentId: scheduledSegment?.queueId === queue.id ? scheduledSegment.id : null,
+        outcome
+      };
+      state.completions.push(completion);
+      logActivity("complete", `Recorded ${completion.outcome} from ${queue.name} at ${formatClock(completion.at)} while no productive queue was active.`);
+      els.offQueueCompletionDialog.close();
+      renderAll();
+      playOutcomeClickSound();
+      if (outcomeButton) animateOutcomeButton(outcomeButton);
+      pendingOffQueueOutcome = null;
+      pendingOffQueueButton = null;
+    }
+
     function completeApp(outcome) {
       const segment = getCurrentSegment();
       const queue = segment ? getQueue(segment.queueId) : null;
       if (!queue || !isProductiveQueue(queue)) {
-        return alert("A productive queue must be active in the current plan before recording an outcome.");
+        openOffQueueCompletionDialog(outcome, document.querySelector(`[data-outcome="${outcome}"]`));
+        return false;
       }
 
       const completion = {
@@ -2674,6 +2758,16 @@ dialog::backdrop {
     els.dayDetailBtn.addEventListener("click", showDayDetails);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
     els.scheduledAppsNowBtn.addEventListener("click", scrollScheduledAppsToFocus);
+    els.offQueueCompletionDepartment.addEventListener("change", renderOffQueueCompletionQueues);
+    els.offQueueCompletionForm.addEventListener("submit", event => {
+      event.preventDefault();
+      recordOffQueueCompletion();
+    });
+    els.cancelOffQueueCompletionBtn.addEventListener("click", () => els.offQueueCompletionDialog.close());
+    els.offQueueCompletionDialog.addEventListener("close", () => {
+      pendingOffQueueOutcome = null;
+      pendingOffQueueButton = null;
+    });
     els.completionHistory.addEventListener("change", event => {
       const completionTimeId = event.target.dataset.completionTime;
       const completionQueueId = event.target.dataset.completionQueue;
