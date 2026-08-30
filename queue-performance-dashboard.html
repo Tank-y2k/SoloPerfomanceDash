@@ -39,7 +39,7 @@ button { border: 0; cursor: pointer; color: inherit; }
 a.btn { text-decoration: none; }
 
 .app-shell {
-  width: min(560px, calc(100% - 24px));
+  width: min(500px, calc(100% - 24px));
   margin: 0 auto;
   height: 100%;
   padding: 16px 0;
@@ -49,7 +49,7 @@ a.btn { text-decoration: none; }
   position: fixed;
   top: 14px;
   right: 14px;
-  z-index: 50;
+  z-index: 100;
 }
 
 .title-block h1 {
@@ -967,6 +967,8 @@ dialog:not(.popup-dialog) {
   border: 0;
   border-radius: 0;
   background: radial-gradient(circle at top left, rgba(94, 234, 212, .08), transparent 30%), var(--bg);
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 dialog:not(.popup-dialog)::backdrop { background: var(--bg); backdrop-filter: none; }
 dialog:not(.popup-dialog) .modal-inner {
@@ -985,12 +987,7 @@ dialog:not(.popup-dialog) .modal-header {
   padding: 12px 76px 16px 0;
   background: linear-gradient(var(--bg) 75%, transparent);
 }
-dialog:not(.popup-dialog) .modal-header > .btn:last-child {
-  position: fixed;
-  top: 14px;
-  right: 14px;
-  z-index: 6;
-}
+dialog:not(.popup-dialog) .modal-header > .btn:last-child { display: none; }
 dialog:not(.popup-dialog) .queue-list,
 dialog:not(.popup-dialog) .segment-list,
 dialog:not(.popup-dialog) .log-list { max-height: none; }
@@ -1018,13 +1015,13 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
 .help-card .steps li { counter-increment: step; padding-left: 42px; position: relative; }
 .help-card .steps li::before { content: counter(step); position: absolute; left: 0; top: 0; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--accent-strong); color: #042f2e; font-weight: 900; }
 
-@media (max-width: 760px) {
+@media (max-width: 1199px) {
   .help-layout { grid-template-columns: 1fr; }
   .help-nav { position: static; columns: 2; }
   .help-nav strong { column-span: all; }
   .help-card dl { grid-template-columns: 1fr; gap: 2px; }
-  dialog:not(.popup-dialog) .modal-inner { width: calc(100% - 24px); padding-top: 8px; }
-  .app-shell { width: min(100% - 12px, 1500px); padding: 6px 0; }
+  dialog:not(.popup-dialog) .modal-inner { width: min(500px, calc(100% - 24px)); padding-top: 8px; }
+  .app-shell { width: min(100% - 12px, 500px); padding: 6px 0; }
   .grid { grid-template-columns: 1fr; display: grid; }
   .top-actions { justify-content: flex-end; }
   .panel { padding: 12px; }
@@ -1072,7 +1069,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
 }
 
 @media (max-width: 480px) {
-  .app-shell { width: min(100% - 12px, 1500px); }
+  .app-shell { width: min(100% - 12px, 500px); }
   .title-block h1 { font-size: 1.65rem; }
   .tracker-fact { padding: 0 6px; }
   .tracker-fact-label { font-size: .62rem; }
@@ -1088,7 +1085,6 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
     z-index: 30;
   }
   dialog:not(.popup-dialog)::backdrop { background: transparent; }
-  dialog:not(.popup-dialog) .modal-header > .btn:last-child { display: none; }
 }
 
   </style>
@@ -1236,7 +1232,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       </section>
       <p class="footer-note">Toasts only appear while this page is open. Sound may also require a user interaction before the browser allows it.</p>
     </form>
-  </dialog>  <dialog id="newDayDialog">
+  </dialog>  <dialog id="newDayDialog" class="popup-dialog">
     <form method="dialog" class="modal-inner stack">
       <div class="modal-header"><h2>A new day has started</h2></div>
       <p class="subtle">Export yesterday’s tracking history and start a fresh schedule, or keep the current day open for now.</p>
@@ -1304,7 +1300,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       <p class="subtle">Correct a completion’s time or queue, or delete mistaken entries. Changing the time automatically selects the productive queue scheduled at that time.</p>
       <div class="log-list single-output" id="completionHistory"></div>
     </form>
-  </dialog>  <dialog id="offQueueCompletionDialog">
+  </dialog>  <dialog id="offQueueCompletionDialog" class="popup-dialog">
     <form class="modal-inner stack" id="offQueueCompletionForm">
       <div class="modal-header">
         <h2>Record completed app</h2>
@@ -2593,23 +2589,25 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
     }
 
     const workspaceDialogs = ["helpDialog", "notificationDialog", "settingsDialog", "dayDetailDialog", "completionDialog", "scheduleImporterDialog", "planDialog"];
+    const workspaceMedia = matchMedia("(min-width: 1200px)");
 
     function isWideWorkspace() {
-      return matchMedia("(min-width: 1200px)").matches;
+      return workspaceMedia.matches;
     }
 
     function closeWorkspaceDialogs(except = null) {
+      if (els.planDialog.open && els.planDialog !== except && !validateScheduleBeforeClose()) return false;
       workspaceDialogs.forEach(id => {
         const dialog = document.getElementById(id);
         if (dialog !== except && dialog?.open) dialog.close();
       });
+      return true;
     }
 
     function openWorkspaceDialog(dialog) {
-      closeWorkspaceDialogs(dialog);
+      if (!closeWorkspaceDialogs(dialog)) return;
       if (dialog.open) return;
-      if (isWideWorkspace()) dialog.show();
-      else dialog.showModal();
+      dialog.show();
     }
 
     function showDayDetails() {
@@ -3060,6 +3058,10 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
     renderAll();
     checkForNewDay();
     if (isWideWorkspace() && state.dayDate === localDateKey()) showDayDetails();
+    workspaceMedia.addEventListener("change", event => {
+      const hasOpenWorkspace = workspaceDialogs.some(id => document.getElementById(id)?.open);
+      if (event.matches && !hasOpenWorkspace && state.dayDate === localDateKey()) showDayDetails();
+    });
     setInterval(() => { renderTimer(); renderUpcomingApps(); checkDueNotifications(); }, 1000);
     setInterval(checkForNewDay, 60000);
   </script></body>
