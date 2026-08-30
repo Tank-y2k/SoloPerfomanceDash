@@ -4,8 +4,7 @@ A private, browser-based dashboard for planning a workday across queues, recordi
 
 ## Contents
 
-- [`queue-performance-dashboard.html`](queue-performance-dashboard.html) — the dashboard application.
-- [`help.html`](help.html) — user guide covering the timer, outcomes, schedule, settings, reminders, reviews, and resets.
+- [`queue-performance-dashboard.html`](queue-performance-dashboard.html) — the portable dashboard application, including its in-app user guide.
 - [`DATA_DICTIONARY.md`](DATA_DICTIONARY.md) — definitions of persisted state, record shapes, CSV fields, constants, and calculated values.
 
 ## Quick start
@@ -24,7 +23,7 @@ No installation or compilation is required.
 4. Use **Day Details** under **Day actions** to review totals and performance.
 5. Choose **Export CSV** before **Reset Day** when you need an external record.
 
-See the [complete user guide](help.html) for every feature and setting.
+Open **Menu → Help** for the complete user guide without leaving the dashboard.
 
 Forgot to record an application at the right moment? Open **Menu → Completed Apps** and edit its completion time. The dashboard selects the productive queue scheduled at the corrected time automatically, and the adjacent task/queue dropdown provides a manual override. If an outcome button is pressed during a non-productive activity, the dashboard instead asks for the completion’s department, task/queue, and time.
 
