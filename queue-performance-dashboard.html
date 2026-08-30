@@ -830,6 +830,64 @@ input:focus, select:focus, textarea:focus {
 @media (prefers-reduced-motion: reduce) {
   .final-round, .final-round-title, .outcome-actions .btn.outcome-recorded { animation: none; }
 }
+
+/* Keep the complete working view visible on typical laptop-height displays. */
+@media (max-height: 900px) {
+  .app-shell { padding-block: 8px; }
+  .grid, .stack { gap: 9px; }
+  .panel { padding: 12px; }
+
+  .tracker-card { padding: 14px 18px 12px; border-radius: 18px; }
+  .timer-display { margin: 4px 0 2px; font-size: clamp(3rem, 7vh, 4.25rem); }
+  .segment-countdown { margin-top: 8px; }
+  .tracker-primary-facts { margin-top: 10px; padding-bottom: 10px; }
+  .tracker-primary-facts .tracker-fact { padding-block: 2px; }
+  .timer-progress { margin-top: 10px; }
+  .performance-card { margin-top: 10px; }
+  .performance-title { padding: 8px 12px; }
+  .performance-row-label, .tracker-fact { padding-block: 8px; }
+
+  .outcome-actions { gap: 7px; }
+  .outcome-actions .btn { min-height: 40px; padding-block: 7px; }
+  .outcome-actions .btn span { font-size: 1.15rem; }
+
+  .day-overview { gap: 7px; }
+  .day-timeline { height: 34px; }
+  .scheduled-now-btn { width: 2rem; height: 2rem; }
+  .upcoming-apps { min-height: 70px; }
+  .upcoming-app { padding-block: 6px; }
+}
+
+/* On a wide monitor the live tracker stays at its useful narrow size while
+   menu screens use the otherwise empty workspace beside it. */
+@media (min-width: 1100px) {
+  body { padding-left: 400px; }
+  .app-shell {
+    position: fixed;
+    inset: 6px auto 6px 6px;
+    width: 388px;
+    height: auto;
+    padding: 0;
+  }
+  .panel { padding: 12px; }
+  .grid, .stack { gap: 9px; }
+  .tracker-card { padding: 14px 12px 12px; border-radius: 18px; }
+  .timer-display { margin: 4px 0 2px; font-size: clamp(3rem, 7vh, 4.25rem); }
+  .segment-countdown { margin-top: 8px; }
+  .tracker-primary-facts { margin-top: 10px; padding-bottom: 10px; }
+  .tracker-primary-facts .tracker-fact { min-width: 0; padding: 2px 10px; }
+  .timer-progress, .performance-card { margin-top: 10px; }
+  .performance-title { padding: 8px 12px; }
+  .performance-row-label, .tracker-fact { padding-block: 8px; }
+  .outcome-actions { gap: 7px; }
+  .outcome-actions .btn { min-height: 40px; padding-block: 7px; }
+  .day-overview { gap: 7px; }
+  .day-timeline { height: 34px; }
+  .upcoming-apps { min-height: 70px; }
+  .upcoming-app { padding-block: 6px; }
+
+  .topbar { z-index: 50; }
+}
 .row-flex { flex: 1; }
 .field-max-280 { max-width: 280px; }
 .field-max-220 { max-width: 220px; }
@@ -1020,6 +1078,18 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
   .tracker-fact-value { font-size: .86rem; }
 }
 
+@media (min-width: 1100px) {
+  dialog:not(.popup-dialog) {
+    inset: 0 0 0 400px;
+    width: calc(100vw - 400px);
+    height: 100dvh;
+    margin: 0;
+    z-index: 30;
+  }
+  dialog:not(.popup-dialog)::backdrop { background: transparent; }
+  dialog:not(.popup-dialog) .modal-header > .btn:last-child { display: none; }
+}
+
   </style>
 </head>
 <body>
@@ -1029,6 +1099,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <button class="btn menu-trigger" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="topMenuPanel">☰</button>
         <div class="menu-panel hidden" id="topMenuPanel">
           <div class="menu-group">
+            <button class="btn" id="dashboardBtn" type="button">Live Dashboard</button>
             <button class="btn" id="helpBtn" type="button">Help</button>
             <button class="btn" id="settingsBtn">Queue Settings</button>
             <button class="btn" id="notificationsBtn">Notifications</button>
@@ -1350,6 +1421,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
     const els = {
       menuBtn: document.getElementById("menuBtn"),
       topMenuPanel: document.getElementById("topMenuPanel"),
+      dashboardBtn: document.getElementById("dashboardBtn"),
       helpBtn: document.getElementById("helpBtn"),
       helpDialog: document.getElementById("helpDialog"),
       settingsBtn: document.getElementById("settingsBtn"),
@@ -2519,6 +2591,26 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       return `<div class="panel-soft"><table class="detail-table"><thead><tr><th>Scope</th><th>Time</th><th>Done</th><th>Expected apps</th><th>Expected apps/hr</th><th>Predicted efficiency</th><th>Current apps/hr</th><th>Current AHT</th><th>Current efficiency</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
 
+    const workspaceDialogs = ["helpDialog", "notificationDialog", "settingsDialog", "dayDetailDialog", "completionDialog", "scheduleImporterDialog", "planDialog"];
+
+    function isWideWorkspace() {
+      return matchMedia("(min-width: 1100px)").matches;
+    }
+
+    function closeWorkspaceDialogs(except = null) {
+      workspaceDialogs.forEach(id => {
+        const dialog = document.getElementById(id);
+        if (dialog !== except && dialog?.open) dialog.close();
+      });
+    }
+
+    function openWorkspaceDialog(dialog) {
+      closeWorkspaceDialogs(dialog);
+      if (dialog.open) return;
+      if (isWideWorkspace()) dialog.show();
+      else dialog.showModal();
+    }
+
     function showDayDetails() {
       const productive = state.segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
       const wholeDay = getDayDetailSummary(productive);
@@ -2550,7 +2642,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="9" class="subtle">No productive departments scheduled.</td></tr>')}</section>
         <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="9" class="subtle">No productive queues scheduled.</td></tr>')}</section>
         <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="9" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
-      els.dayDetailDialog.showModal();
+      openWorkspaceDialog(els.dayDetailDialog);
     }
 
     function resetDay(skipConfirmation = false, openSchedule = false) {
@@ -2567,7 +2659,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       state.lastFinalRoundSegment = null;
       state.dayDate = localDateKey();
       renderAll();
-      if (openSchedule) setTimeout(() => els.planDialog.showModal(), 0);
+      if (openSchedule) setTimeout(() => openWorkspaceDialog(els.planDialog), 0);
     }
 
     function checkForNewDay() {
@@ -2797,10 +2889,11 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       if (completeApp(outcome)) animateOutcomeButton(button);
     });
 
-    els.helpBtn.addEventListener("click", () => els.helpDialog.showModal());
+    els.dashboardBtn.addEventListener("click", () => closeWorkspaceDialogs());
+    els.helpBtn.addEventListener("click", () => openWorkspaceDialog(els.helpDialog));
     document.querySelectorAll("[data-close-dialog]").forEach(button => button.addEventListener("click", () => document.getElementById(button.dataset.closeDialog)?.close()));
-    els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
-    els.notificationsBtn.addEventListener("click", () => { renderNotificationStatus(); els.notificationDialog.showModal(); });
+    els.settingsBtn.addEventListener("click", () => openWorkspaceDialog(els.settingsDialog));
+    els.notificationsBtn.addEventListener("click", () => { renderNotificationStatus(); openWorkspaceDialog(els.notificationDialog); });
     els.testNotificationBtn.addEventListener("click", () => {
       sendNotification("Test notification", "Queue Performance Dashboard reminders are working.");
     });
@@ -2842,7 +2935,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
     });
     els.planBtn.addEventListener("click", () => {
       pauseNotificationsForScheduleEdit();
-      els.planDialog.showModal();
+      openWorkspaceDialog(els.planDialog);
     });
     els.scheduleImporterBtn.addEventListener("click", () => {
       pendingScheduleImport = null;
@@ -2850,7 +2943,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       els.scheduleImportMessage.textContent = "Nothing parsed yet.";
       els.scheduleImportMessage.className = "import-message subtle";
       els.scheduleImportPreview.innerHTML = "";
-      els.scheduleImporterDialog.showModal();
+      openWorkspaceDialog(els.scheduleImporterDialog);
     });
     els.previewScheduleImportBtn.addEventListener("click", previewScheduleImport);
     els.applyScheduleImportBtn.addEventListener("click", applyScheduleImport);
@@ -2926,7 +3019,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       if (!validateScheduleBeforeClose()) event.preventDefault();
     });
     els.dayDetailBtn.addEventListener("click", showDayDetails);
-    els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
+    els.completedAppsBtn.addEventListener("click", () => openWorkspaceDialog(els.completionDialog));
     els.scheduledAppsNowBtn.addEventListener("click", scrollScheduledAppsToFocus);
     els.offQueueCompletionDepartment.addEventListener("change", renderOffQueueCompletionQueues);
     els.offQueueCompletionForm.addEventListener("submit", event => {
@@ -2959,12 +3052,13 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       state.dayDate = localDateKey();
       saveState();
       els.newDayDialog.close();
-      els.planDialog.showModal();
+      openWorkspaceDialog(els.planDialog);
     });
 
 
     renderAll();
     checkForNewDay();
+    if (isWideWorkspace() && state.dayDate === localDateKey()) showDayDetails();
     setInterval(() => { renderTimer(); renderUpcomingApps(); checkDueNotifications(); }, 1000);
     setInterval(checkForNewDay, 60000);
   </script></body>
