@@ -319,7 +319,7 @@ input:focus, select:focus, textarea:focus {
 
 .tracker-facts {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   max-width: 980px;
   margin: 16px auto 0;
 }
@@ -928,9 +928,10 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
   .panel { padding: 12px; }
   .tracker-card { padding: 18px 12px 16px; }
   .timer-display { font-size: clamp(3rem, 15vw, 4.5rem); }
-  .tracker-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tracker-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .tracker-fact { padding: 8px; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .1); }
-  .tracker-fact:first-child, .tracker-fact:nth-child(2) { border-top: 0; }
+  .tracker-fact:first-child, .tracker-fact:nth-child(2), .tracker-fact:nth-child(3) { border-top: 0; }
+  .tracker-fact.segment-total { grid-column: 1 / -1; }
   .stats-grid, .stats-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
   .stat { padding: 10px 8px; border-radius: 12px; }
   .stat .value { font-size: clamp(.95rem, 4vw, 1.3rem); white-space: nowrap; }
@@ -963,7 +964,8 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
   .detail-table td:nth-child(5)::before { content: "Expected apps/hr"; }
   .detail-table td:nth-child(6)::before { content: "Predicted efficiency"; }
   .detail-table td:nth-child(7)::before { content: "Current apps/hr"; }
-  .detail-table td:nth-child(8)::before { content: "Current efficiency"; }
+  .detail-table td:nth-child(8)::before { content: "Current AHT"; }
+  .detail-table td:nth-child(9)::before { content: "Current efficiency"; }
 }
 
 @media (max-width: 480px) {
@@ -1015,10 +1017,12 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Department</span><span class="tracker-fact-value" id="currentDepartment">--</span></div>
         <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayEfficiencyLabel">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
         <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
+        <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAhtLabel">Day AHT</span><span class="tracker-fact-value" id="dayAht">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Segment AHT</span><span class="tracker-fact-value" id="segmentAht">--</span></div>
+        <div class="tracker-fact segment-total"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
       </div>
       <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
     </div>
@@ -1376,7 +1380,10 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       segmentEfficiency: document.getElementById("segmentEfficiency"),
       dayAppsPerHour: document.getElementById("dayAppsPerHour"),
       dayAppsPerHourLabel: document.getElementById("dayAppsPerHourLabel"),
+      dayAht: document.getElementById("dayAht"),
+      dayAhtLabel: document.getElementById("dayAhtLabel"),
       segmentAppsPerHour: document.getElementById("segmentAppsPerHour"),
+      segmentAht: document.getElementById("segmentAht"),
       segmentCompleted: document.getElementById("segmentCompleted"),
       timerProgress: document.getElementById("timerProgress"),
       completionHistory: document.getElementById("completionHistory"),
@@ -1657,6 +1664,17 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       return Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : "--";
     }
 
+    function formatAht(appsPerHour) {
+      if (!Number.isFinite(appsPerHour) || appsPerHour <= 0) return "--";
+      const totalSeconds = Math.round(3600 / appsPerHour);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return hours > 0
+        ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+        : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
     function renderPerformance() {
       const segment = getCurrentSegment();
       const queue = segment ? getQueue(segment.queueId) : null;
@@ -1666,10 +1684,13 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       els.currentDepartment.textContent = getDepartment(queue?.departmentId)?.name || "--";
       els.dayEfficiencyLabel.textContent = department ? `${department.name} efficiency` : "Day efficiency";
       els.dayAppsPerHourLabel.textContent = department ? `${department.name} apps/hr` : "Day apps/hr";
+      els.dayAhtLabel.textContent = department ? `${department.name} AHT` : "Day AHT";
       els.dayEfficiency.textContent = formatMetric(day.efficiency, "%");
       els.dayAppsPerHour.textContent = formatMetric(day.appsPerHour);
+      els.dayAht.textContent = formatAht(day.appsPerHour);
       els.segmentEfficiency.textContent = formatMetric(current?.efficiency, "%");
       els.segmentAppsPerHour.textContent = formatMetric(current?.appsPerHour);
+      els.segmentAht.textContent = formatAht(current?.appsPerHour);
       const segmentCompleted = segment ? state.completions.filter(app => app.segmentId === segment.id).length : 0;
       const segmentTarget = segment && isProductiveQueue(queue) ? getSegmentExpectedWholeApps(segment) : 0;
       els.segmentCompleted.textContent = segment && isProductiveQueue(queue) ? `${segmentCompleted}/${segmentTarget}` : "--";
@@ -2449,12 +2470,12 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <td><div class="detail-name">${color ? `<span class="swatch" style="--queue-color:${color}"></span>` : ""}<span>${escapeHtml(name)}<br><span class="detail-sub">${escapeHtml(sub)}</span></span>${modifier}</div></td>
         <td>${formatHoursMinutes(summary.minutes / 60)}</td><td>${summary.completed}</td><td>${summary.expectedApps}</td>
         <td>${detailMetric(summary.expectedAppsPerHour)}</td><td>${detailMetric(summary.predictedEfficiency, "%")}</td>
-        <td>${detailMetric(summary.currentAppsPerHour)}</td><td>${detailMetric(summary.currentEfficiency, "%")}</td>
+        <td>${detailMetric(summary.currentAppsPerHour)}</td><td>${formatAht(summary.currentAppsPerHour)}</td><td>${detailMetric(summary.currentEfficiency, "%")}</td>
       </tr>`;
     }
 
     function renderDetailTable(rows) {
-      return `<div class="panel-soft"><table class="detail-table"><thead><tr><th>Scope</th><th>Time</th><th>Done</th><th>Expected apps</th><th>Expected apps/hr</th><th>Predicted efficiency</th><th>Current apps/hr</th><th>Current efficiency</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      return `<div class="panel-soft"><table class="detail-table"><thead><tr><th>Scope</th><th>Time</th><th>Done</th><th>Expected apps</th><th>Expected apps/hr</th><th>Predicted efficiency</th><th>Current apps/hr</th><th>Current AHT</th><th>Current efficiency</th></tr></thead><tbody>${rows}</tbody></table></div>`;
     }
 
     function showDayDetails() {
@@ -2479,14 +2500,15 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
           <article class="stat ${wholeDay.predictedEfficiency >= 100 ? "good" : "warn"}"><div class="value">${detailMetric(wholeDay.predictedEfficiency, "%")}</div><div class="label">Predicted efficiency</div></article>
           <article class="stat"><div class="value">${detailMetric(wholeDay.expectedAppsPerHour)}</div><div class="label">Expected apps/hr</div></article>
           <article class="stat"><div class="value">${detailMetric(wholeDay.currentAppsPerHour)}</div><div class="label">Current apps/hr</div></article>
+          <article class="stat"><div class="value">${formatAht(wholeDay.currentAppsPerHour)}</div><div class="label">Current AHT</div></article>
           <article class="stat"><div class="value">${detailMetric(wholeDay.currentEfficiency, "%")}</div><div class="label">Current efficiency</div></article>
           <article class="stat"><div class="value">${formatHoursMinutes(nonProductiveMinutes / 60)}</div><div class="label">Non-productive time</div></article>
         </section>
         <p class="subtle">Predicted efficiency compares each recalculated whole-app target with its unrounded queue-rate expectation. Rounding up normally makes it at least 100%; manual target reductions can lower it.</p>
         <section><h3 class="detail-section-heading">Whole day</h3>${renderDetailTable(renderDetailRow("All departments", `${productive.length} productive segments`, productive))}</section>
-        <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="8" class="subtle">No productive departments scheduled.</td></tr>')}</section>
-        <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="8" class="subtle">No productive queues scheduled.</td></tr>')}</section>
-        <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="8" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
+        <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="9" class="subtle">No productive departments scheduled.</td></tr>')}</section>
+        <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="9" class="subtle">No productive queues scheduled.</td></tr>')}</section>
+        <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="9" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
       els.dayDetailDialog.showModal();
     }
 
