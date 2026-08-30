@@ -621,6 +621,14 @@ input:focus, select:focus, textarea:focus {
 }
 
 .overview-heading h2 { margin-bottom: 0; }
+.scheduled-apps-heading h3 { margin-bottom: 0; }
+.scheduled-now-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+}
 .expected-total {
   color: var(--text);
   background: rgba(94, 234, 212, .09);
@@ -961,7 +969,10 @@ dialog::backdrop {
         <span class="pill expected-total" id="expectedAppsTotal" aria-label="0 apps expected">0</span>
       </div>
       <div class="day-timeline" id="dayTimeline"></div>
-      <h3>Scheduled apps</h3>
+      <div class="overview-heading scheduled-apps-heading">
+        <h3>Scheduled apps</h3>
+        <button class="btn small scheduled-now-btn" id="scheduledAppsNowBtn" type="button" aria-label="Jump to current scheduled item" title="Jump to now">⌖</button>
+      </div>
       <div class="upcoming-apps" id="upcomingApps" aria-live="polite"></div>
     </section>
 
@@ -1239,6 +1250,7 @@ dialog::backdrop {
       completionHistory: document.getElementById("completionHistory"),
       dayTimeline: document.getElementById("dayTimeline"),
       expectedAppsTotal: document.getElementById("expectedAppsTotal"),
+      scheduledAppsNowBtn: document.getElementById("scheduledAppsNowBtn"),
       upcomingApps: document.getElementById("upcomingApps")
     };
 
@@ -1688,6 +1700,13 @@ dialog::backdrop {
 
     let scheduledAppsFocusKey = null;
 
+    function scrollScheduledAppsToFocus() {
+      const focusElement = els.upcomingApps.querySelector('[data-scheduled-focus="true"]');
+      if (!focusElement) return;
+      const firstItem = els.upcomingApps.querySelector(".upcoming-app");
+      els.upcomingApps.scrollTop = focusElement.offsetTop - (firstItem?.offsetTop || 0);
+    }
+
     function renderUpcomingApps() {
       const previousScrollTop = els.upcomingApps.scrollTop;
       const now = nowDate();
@@ -1751,11 +1770,8 @@ dialog::backdrop {
       // Only move the view when its meaningful focus changes: an application
       // was submitted, or the current non-productive activity began/ended.
       // Otherwise preserve manual scrolling between the once-per-second renders.
-      const focusElement = els.upcomingApps.querySelector('[data-scheduled-focus="true"]');
-      if (focusElement && focusKey !== scheduledAppsFocusKey) {
-        const firstItem = els.upcomingApps.querySelector(".upcoming-app");
-        els.upcomingApps.scrollTop = focusElement.offsetTop - (firstItem?.offsetTop || 0);
-      } else els.upcomingApps.scrollTop = previousScrollTop;
+      if (focusKey !== scheduledAppsFocusKey) scrollScheduledAppsToFocus();
+      else els.upcomingApps.scrollTop = previousScrollTop;
       scheduledAppsFocusKey = focusKey;
     }
 
@@ -2629,6 +2645,7 @@ dialog::backdrop {
     });
     els.dayDetailBtn.addEventListener("click", showDayDetails);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
+    els.scheduledAppsNowBtn.addEventListener("click", scrollScheduledAppsToFocus);
     els.completionHistory.addEventListener("change", event => {
       const completionTimeId = event.target.dataset.completionTime;
       const completionQueueId = event.target.dataset.completionQueue;
