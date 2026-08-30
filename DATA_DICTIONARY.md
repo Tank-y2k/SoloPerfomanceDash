@@ -29,6 +29,7 @@ This document catalogues the Queue Performance Dashboard's persisted data, recor
 | `timerQueueId` | `string \| null` | `null` | Compatibility/tracking queue field reset on a new day. |
 | `notificationsEnabled` | `boolean` | `false` | Whether scheduled target reminders are checked each second. |
 | `notificationSound` | `boolean` | `true` | Whether reminder/test notifications also play a generated sound. |
+| `outcomeClickSound` | `boolean` | `true` | Whether successfully recording an outcome plays a short generated click. |
 | `lastNotifiedSlot` | `string \| null` | `null` | Deduplication key for the most recently announced target slot. |
 | `lastFinalRoundSegment` | `string \| null` | `null` | Date-and-segment key used to show the final-target overlay once per segment. |
 | `dayDate` | `string` (`YYYY-MM-DD`) | Current local date | Day associated with live state; used to detect a date rollover. |
