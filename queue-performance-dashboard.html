@@ -25,7 +25,9 @@
 
 body {
   margin: 0;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   font-family: var(--font);
   background: radial-gradient(circle at top left, rgba(94, 234, 212, 0.08), transparent 30%), var(--bg);
   color: var(--text);
@@ -38,15 +40,15 @@ a.btn { text-decoration: none; }
 .app-shell {
   width: min(1500px, calc(100% - 32px));
   margin: 0 auto;
-  padding: 24px 0 40px;
+  height: 100%;
+  padding: 16px 0;
 }
 
 .topbar {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-start;
-  margin-bottom: 20px;
+  position: fixed;
+  top: 14px;
+  right: 14px;
+  z-index: 50;
 }
 
 .title-block h1 {
@@ -66,6 +68,16 @@ a.btn { text-decoration: none; }
   gap: 8px;
   justify-content: flex-end;
   position: relative;
+}
+
+.menu-trigger {
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  font-size: 1.35rem;
+  background: rgba(24, 26, 32, .92);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(8px);
 }
 
 .icon-btn {
@@ -97,6 +109,8 @@ a.btn { text-decoration: none; }
   background: var(--panel);
   box-shadow: var(--shadow);
   z-index: 40;
+  max-height: calc(100dvh - 76px);
+  overflow-y: auto;
 }
 
 .menu-panel .btn {
@@ -104,12 +118,27 @@ a.btn { text-decoration: none; }
   border-radius: 12px;
 }
 
+.menu-group { display: grid; gap: 8px; }
+.menu-group + .menu-group { padding-top: 10px; border-top: 1px solid var(--border); }
+.menu-group-label {
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+  height: 100%;
 }
+
+.main-panel { height: 100%; min-height: 0; overflow: hidden; grid-template-rows: auto auto minmax(0, 1fr); }
+.stack.day-overview { display: flex; flex-direction: column; min-height: 0; }
 
 .panel {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), transparent), var(--panel);
@@ -298,6 +327,7 @@ input:focus, select:focus, textarea:focus {
 .tracker-fact:first-child { border-left: 0; }
 .tracker-fact-label { color: var(--muted); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
 .tracker-fact-value { font-weight: 700; font-variant-numeric: tabular-nums; }
+.tracker-fact.day-score .tracker-fact-value { color: var(--accent); }
 
 .tracker-meta {
   color: var(--muted);
@@ -362,10 +392,9 @@ input:focus, select:focus, textarea:focus {
 }
 
 .schedule-modal { width: min(980px, calc(100vw - 28px)); }
-.day-detail-modal { width: min(1180px, calc(100vw - 28px)); }
-.day-detail-modal .modal-inner { max-height: min(88vh, 920px); overflow: auto; }
-.day-detail-modal .panel-soft { overflow-x: auto; }
-.detail-table { width: 100%; min-width: 900px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.day-detail-modal { width: min(1180px, calc(100vw - 28px)); max-height: min(88dvh, 920px); overflow: hidden; }
+.day-detail-modal .modal-inner { max-height: min(88vh, 920px); overflow-y: auto; overflow-x: hidden; }
+.detail-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .detail-table th, .detail-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: right; }
 .detail-table th:first-child, .detail-table td:first-child { text-align: left; }
 .detail-table th { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
@@ -593,7 +622,10 @@ input:focus, select:focus, textarea:focus {
 .upcoming-apps {
   display: grid;
   gap: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 110px;
+  flex: 1;
   border: 1px solid var(--border);
   border-radius: 14px;
   background: rgba(255, 255, 255, .02);
@@ -787,11 +819,27 @@ dialog::backdrop {
 .import-message.error { color: var(--danger); }
 .import-message.success { color: var(--success); }
 
+.department-settings { padding: 0; overflow: hidden; }
+.department-settings summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+}
+.department-settings summary::-webkit-details-marker { display: none; }
+.department-settings summary::after { content: "+"; color: var(--accent); font-size: 1.25rem; }
+.department-settings[open] summary { border-bottom: 1px solid var(--border); }
+.department-settings[open] summary::after { content: "−"; }
+.department-settings-content { padding: 14px; }
+
 @media (max-width: 760px) {
-  .app-shell { width: min(100% - 20px, 1500px); padding-top: 14px; }
-  .topbar, .grid { grid-template-columns: 1fr; display: grid; }
-  .top-actions { justify-content: stretch; }
-  .top-actions .btn { flex: 1; }
+  .app-shell { width: min(100% - 12px, 1500px); padding: 6px 0; }
+  .grid { grid-template-columns: 1fr; display: grid; }
+  .top-actions { justify-content: flex-end; }
   .panel { padding: 12px; }
   .tracker-card { padding: 18px 12px 16px; }
   .timer-display { font-size: clamp(3rem, 15vw, 4.5rem); }
@@ -811,7 +859,26 @@ dialog::backdrop {
   .schedule-row input { grid-column: 2; }
   .schedule-duration { display: none; }
   .outcome-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .outcome-actions [data-outcome="Other"] { grid-column: 1 / -1; width: calc(50% - 5px); justify-self: center; }
   .completion-edit-grid { grid-template-columns: 1fr; }
+  .day-detail-modal { width: calc(100vw - 12px); }
+  .day-detail-modal { max-height: calc(100dvh - 12px); }
+  .day-detail-modal .modal-inner { padding: 14px; max-height: calc(100dvh - 12px); }
+  .day-detail-modal .stats-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .detail-table thead { display: none; }
+  .detail-table, .detail-table tbody { display: block; }
+  .detail-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .detail-table tr:last-child { border-bottom: 0; }
+  .detail-table td { display: grid; gap: 2px; padding: 7px 6px; border: 0; text-align: left; }
+  .detail-table td:first-child { grid-column: 1 / -1; }
+  .detail-table td:not(:first-child)::before { color: var(--muted); font-size: .62rem; letter-spacing: .06em; text-transform: uppercase; }
+  .detail-table td:nth-child(2)::before { content: "Time"; }
+  .detail-table td:nth-child(3)::before { content: "Done"; }
+  .detail-table td:nth-child(4)::before { content: "Expected apps"; }
+  .detail-table td:nth-child(5)::before { content: "Expected apps/hr"; }
+  .detail-table td:nth-child(6)::before { content: "Predicted efficiency"; }
+  .detail-table td:nth-child(7)::before { content: "Current apps/hr"; }
+  .detail-table td:nth-child(8)::before { content: "Current efficiency"; }
 }
 
 @media (max-width: 480px) {
@@ -827,22 +894,28 @@ dialog::backdrop {
 <body>
   <main class="app-shell">
     <header class="topbar">
-      <section class="title-block">
-      </section>
       <section class="top-actions">
-        <a class="btn icon-btn" href="help.html" aria-label="Help" title="Help">?</a>
-        <button class="btn" id="menuBtn">Menu</button>
+        <button class="btn menu-trigger" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="topMenuPanel">☰</button>
         <div class="menu-panel hidden" id="topMenuPanel">
-          <button class="btn" id="settingsBtn">Queue Settings</button>
-          <button class="btn" id="notificationsBtn">Notifications</button>
-          <button class="btn" id="planBtn">Schedule</button>
-          <button class="btn" id="scheduleImporterBtn">Import Schedule</button>
-          <button class="btn" id="snapshotBtn">Save Current Plan</button>
-          <button class="btn" id="dayDetailBtn">Day Details</button>
-          <button class="btn warning" id="endDayBtn">End Day Review</button>
-          <button class="btn" id="completedAppsBtn">Completed Apps</button>
-          <button class="btn" id="exportCsvBtn">Export CSV</button>
-          <button class="btn danger" id="resetBtn">Reset Day</button>
+          <div class="menu-group">
+            <a class="btn" href="help.html">Help</a>
+            <button class="btn" id="settingsBtn">Queue Settings</button>
+            <button class="btn" id="notificationsBtn">Notifications</button>
+            <button class="btn" id="dayDetailBtn">Day Details</button>
+            <button class="btn" id="completedAppsBtn">Completed Apps</button>
+          </div>
+          <div class="menu-group">
+            <span class="menu-group-label">Schedule</span>
+            <button class="btn" id="planBtn">Edit Schedule</button>
+            <button class="btn" id="scheduleImporterBtn">Import Schedule</button>
+          </div>
+          <div class="menu-group">
+            <span class="menu-group-label">Day actions</span>
+            <button class="btn" id="snapshotBtn">Save Current Plan</button>
+            <button class="btn" id="exportCsvBtn">Export CSV</button>
+            <button class="btn warning" id="endDayBtn">End Day Review</button>
+            <button class="btn danger" id="resetBtn">Reset Day</button>
+          </div>
         </div>
       </section>
     </header><section class="grid">
@@ -858,9 +931,9 @@ dialog::backdrop {
         <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Department</span><span class="tracker-fact-value" id="currentDepartment">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label" id="dayEfficiencyLabel">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
+        <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayEfficiencyLabel">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
+        <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
       </div>
@@ -875,13 +948,13 @@ dialog::backdrop {
       <button class="btn" type="button" data-outcome="Other">Other</button>
     </div>
 
-    <section class="stack">
+    <section class="stack day-overview">
       <div class="overview-heading">
         <h2>Day Overview</h2>
         <span class="pill expected-total" id="expectedAppsTotal" aria-label="0 apps expected">0</span>
       </div>
       <div class="day-timeline" id="dayTimeline"></div>
-      <h3>Next 10 apps</h3>
+      <h3>Upcoming apps</h3>
       <div class="upcoming-apps" id="upcomingApps" aria-live="polite"></div>
     </section>
 
@@ -960,15 +1033,17 @@ dialog::backdrop {
     </div>
 
     <div class="queue-list" id="queueList"></div>
-    <section class="panel-soft stack">
-      <h3>Departments</h3>
-      <p class="subtle">Departments group productive queues for current and future work types.</p>
-      <div class="row">
-        <div class="field"><label for="departmentName">Department name</label><input id="departmentName" placeholder="e.g. Reviews" /></div>
-        <button class="btn primary" id="addDepartmentBtn" type="button">Add Department</button>
+    <details class="panel-soft department-settings">
+      <summary>Departments</summary>
+      <div class="stack department-settings-content">
+        <p class="subtle">Departments group productive queues for current and future work types.</p>
+        <div class="row">
+          <div class="field"><label for="departmentName">Department name</label><input id="departmentName" placeholder="e.g. Reviews" /></div>
+          <button class="btn primary" id="addDepartmentBtn" type="button">Add Department</button>
+        </div>
+        <div class="queue-list" id="departmentList"></div>
       </div>
-      <div class="queue-list" id="departmentList"></div>
-    </section>
+    </details>
   </div>
 </form>
 
@@ -1613,22 +1688,17 @@ dialog::backdrop {
 
     function renderUpcomingApps() {
       const now = nowDate();
-      const upcoming = getScheduledCompletionSlots()
-        .filter(slot => slot.at.getTime() > now.getTime())
-        .slice(0, 10);
+      const upcomingSlots = getScheduledCompletionSlots()
+        .filter(slot => slot.at.getTime() > now.getTime());
 
-      // Keep the ten app targets as the pacing guide, but insert each
-      // non-productive activity encountered before the last displayed target.
-      // This preserves a lunch/break as one schedule block instead of making
-      // the list appear to jump directly between the productive segments.
-      const lastUpcomingAt = upcoming.at(-1)?.at.getTime() ?? Infinity;
+      // Keep every remaining target in one contained scroller, including
+      // current and upcoming non-productive activities, without retaining
+      // historical targets that are no longer useful for pacing.
       const nonProductiveSegments = getSortedSegments()
         .filter(segment => {
           const queue = getQueue(segment.queueId);
-          const { start, end } = getSegmentBounds(segment);
-          const startsAt = getScheduleDateAtMinutes(start).getTime();
-          const endsAt = getScheduleDateAtMinutes(end).getTime();
-          return !isProductiveQueue(queue) && endsAt > now.getTime() && startsAt <= lastUpcomingAt;
+          const endsAt = getScheduleDateAtMinutes(getSegmentBounds(segment).end);
+          return !isProductiveQueue(queue) && endsAt.getTime() > now.getTime();
         })
         .map(segment => ({
           type: "activity",
@@ -1638,7 +1708,7 @@ dialog::backdrop {
         }));
 
       const items = [
-        ...upcoming.map((slot, index) => ({ type: "app", at: slot.at, slot, appIndex: index + 1 })),
+        ...upcomingSlots.map((slot, index) => ({ type: "app", at: slot.at, slot, appIndex: index + 1 })),
         ...nonProductiveSegments
       ].sort((a, b) => a.at.getTime() - b.at.getTime() || (a.type === "app" ? -1 : 1));
 
@@ -2337,6 +2407,7 @@ dialog::backdrop {
     document.addEventListener("click", event => {
       if (!els.topMenuPanel.contains(event.target) && event.target !== els.menuBtn) {
         els.topMenuPanel.classList.add("hidden");
+        els.menuBtn.setAttribute("aria-expanded", "false");
       }
       const editQueueId = event.target.dataset.editQueue;
       const deleteQueueId = event.target.dataset.deleteQueue;
@@ -2455,7 +2526,14 @@ dialog::backdrop {
       saveState();
       if (!state.finalRoundMusic) finalRoundUrgencyCue.stop();
     });
-    els.menuBtn.addEventListener("click", () => els.topMenuPanel.classList.toggle("hidden"));
+    els.menuBtn.addEventListener("click", () => {
+      const isOpen = els.topMenuPanel.classList.toggle("hidden") === false;
+      els.menuBtn.setAttribute("aria-expanded", String(isOpen));
+    });
+    els.topMenuPanel.addEventListener("click", () => {
+      els.topMenuPanel.classList.add("hidden");
+      els.menuBtn.setAttribute("aria-expanded", "false");
+    });
     els.planBtn.addEventListener("click", () => {
       pauseNotificationsForScheduleEdit();
       els.planDialog.showModal();
