@@ -1023,7 +1023,7 @@ dialog::backdrop {
         <h2>Today’s Queue Plan</h2>
         <button class="btn small" value="close">Close</button>
       </div>
-      <p class="subtle">The default shift is 11:00–19:30, beginning with a 15-minute team briefing. A segment runs until the next one begins. Outcomes are recorded against the productive queue active in the schedule.</p>
+      <p class="subtle">The default shift is 11:00–19:30, beginning with 15-minute team briefings. A segment runs until the next one begins. Outcomes are recorded against the productive queue active in the schedule.</p>
       <div class="schedule-toolbar">
         <div class="field">
           <label for="shiftStart">Shift starts</label>
@@ -1047,14 +1047,14 @@ dialog::backdrop {
     const STORAGE_KEY = "queuePerformanceDashboard.v2";
     const NON_PRODUCTIVE_NAME = "Non-productive";
     const OFF_QUEUE_NAME = "Off queue";
-    const TEAM_BRIEFING_NAME = "Team briefing";
-    const TEAM_BRIEFING_ID = crypto.randomUUID();
+    const TEAM_BRIEFINGS_NAME = "Team Briefings";
+    const TEAM_BRIEFINGS_ID = crypto.randomUUID();
     const BCA_DEPARTMENT_ID = crypto.randomUUID();
     const PCA_DEPARTMENT_ID = crypto.randomUUID();
     const BASE_TITLE = "Queue Performance Dashboard";
     const DEFAULT_SHIFT_START = "11:00";
     const DEFAULT_SHIFT_END = "19:30";
-    const TEAM_BRIEFING_MINUTES = 15;
+    const TEAM_BRIEFINGS_MINUTES = 15;
 
     const defaultState = {
       departments: [
@@ -1064,7 +1064,7 @@ dialog::backdrop {
       queues: [
         { id: crypto.randomUUID(), name: NON_PRODUCTIVE_NAME, rate: 0, color: "#71717a", locked: true },
         { id: crypto.randomUUID(), name: OFF_QUEUE_NAME, rate: 0, color: "#f59e0b", locked: true },
-        { id: TEAM_BRIEFING_ID, name: TEAM_BRIEFING_NAME, rate: 0, color: "#0ea5e9", locked: true },
+        { id: TEAM_BRIEFINGS_ID, name: TEAM_BRIEFINGS_NAME, rate: 0, color: "#0ea5e9", locked: true },
         { id: crypto.randomUUID(), name: "Startup", rate: 2.29, color: "#ba3aff", departmentId: BCA_DEPARTMENT_ID },
         { id: crypto.randomUUID(), name: "Established", rate: 2.29, color: "#2df24d", departmentId: BCA_DEPARTMENT_ID },
         { id: crypto.randomUUID(), name: "Resubmissions", rate: 2.63, color: "#fb2832", departmentId: BCA_DEPARTMENT_ID },
@@ -1073,7 +1073,7 @@ dialog::backdrop {
       ],
       shiftStart: DEFAULT_SHIFT_START,
       shiftEnd: DEFAULT_SHIFT_END,
-      segments: [{ id: crypto.randomUUID(), queueId: TEAM_BRIEFING_ID, start: DEFAULT_SHIFT_START }],
+      segments: [{ id: crypto.randomUUID(), queueId: TEAM_BRIEFINGS_ID, start: DEFAULT_SHIFT_START }],
       completions: [],
       activityLog: [],
       startingSnapshot: null,
@@ -1090,7 +1090,7 @@ dialog::backdrop {
     let state = loadState();
     ensureNonProductiveQueue();
     ensureOffQueue();
-    ensureTeamBriefingQueue();
+    ensureTeamBriefingsQueue();
 
     const els = {
       menuBtn: document.getElementById("menuBtn"),
@@ -1236,15 +1236,17 @@ dialog::backdrop {
       return queue;
     }
 
-    function ensureTeamBriefingQueue() {
-      const existing = state.queues.find(queue => queue.name.toLowerCase() === TEAM_BRIEFING_NAME.toLowerCase());
+    function ensureTeamBriefingsQueue() {
+      const existing = state.queues.find(queue => queue.name.toLowerCase() === TEAM_BRIEFINGS_NAME.toLowerCase())
+        || state.queues.find(queue => queue.locked && ![NON_PRODUCTIVE_NAME, OFF_QUEUE_NAME].includes(queue.name));
       if (existing) {
+        existing.name = TEAM_BRIEFINGS_NAME;
         existing.rate = 0;
         existing.locked = true;
         existing.color = existing.color || "#0ea5e9";
         return existing;
       }
-      const queue = { id: crypto.randomUUID(), name: TEAM_BRIEFING_NAME, rate: 0, color: "#0ea5e9", locked: true };
+      const queue = { id: crypto.randomUUID(), name: TEAM_BRIEFINGS_NAME, rate: 0, color: "#0ea5e9", locked: true };
       state.queues.push(queue);
       return queue;
     }
@@ -1944,7 +1946,7 @@ dialog::backdrop {
       const lastSegment = sorted.at(-1);
       const shiftStart = minutesFromTime(state.shiftStart);
       const lastStart = lastSegment ? minutesFromTime(lastSegment.start) : shiftStart - 30;
-      const increment = getQueue(lastSegment?.queueId)?.name === TEAM_BRIEFING_NAME ? TEAM_BRIEFING_MINUTES : 30;
+      const increment = getQueue(lastSegment?.queueId)?.name === TEAM_BRIEFINGS_NAME ? TEAM_BRIEFINGS_MINUTES : 30;
       const nextStart = Math.max(Number.isFinite(shiftStart) ? shiftStart : 0, Number.isFinite(lastStart) ? lastStart + increment : 0);
       const start = timeFromMinutes(nextStart);
       const queue = getQueue(queueId);
@@ -2187,7 +2189,7 @@ dialog::backdrop {
 
     function resetDay(skipConfirmation = false, openSchedule = false) {
       if (!skipConfirmation && !confirm("Reset today’s segments, completions, logs, and snapshot? Queue settings will be kept.")) return;
-      const briefingQueue = ensureTeamBriefingQueue();
+      const briefingQueue = ensureTeamBriefingsQueue();
       state.shiftStart = DEFAULT_SHIFT_START;
       state.shiftEnd = DEFAULT_SHIFT_END;
       state.segments = [{ id: crypto.randomUUID(), queueId: briefingQueue.id, start: DEFAULT_SHIFT_START }];
@@ -2223,12 +2225,12 @@ dialog::backdrop {
     function canonicalImportedActivityName(name) {
       const compact = name.trim().replace(/\s+/g, " ");
       const aliases = {
-        "team briefings": TEAM_BRIEFING_NAME,
-        "team briefing": TEAM_BRIEFING_NAME,
-        "bca startup": "Startup",
-        "bca established": "Established",
-        "bca resubs": "Resubmissions",
-        "bca resubmissions": "Resubmissions"
+        "team briefings": TEAM_BRIEFINGS_NAME,
+        "bca startup": "BCA Startup",
+        "bca established": "BCA Established",
+        "bca resubs": "BCA Resubs",
+        "bca sole trader": "BCA Sole Trader",
+        "bca sole trader resubs": "BCA Sole Trader Resubs",
       };
       return aliases[compact.toLowerCase()] || compact;
     }
@@ -2273,7 +2275,19 @@ dialog::backdrop {
     }
 
     function findImportedQueue(name) {
-      return state.queues.find(queue => queue.name.trim().toLowerCase() === name.trim().toLowerCase());
+      const importedName = name.trim().toLowerCase();
+      const exactMatch = state.queues.find(queue => queue.name.trim().toLowerCase() === importedName);
+      if (exactMatch) return exactMatch;
+
+      // Scheduling exports qualify some queue names with their department (for
+      // example, "BCA Established"), while older saved dashboards may still
+      // store that queue as simply "Established" in the BCA department.
+      return state.queues.find(queue => {
+        const department = getDepartment(queue.departmentId);
+        if (!department) return false;
+        const qualifiedName = `${department.name} ${queue.name}`.trim().toLowerCase();
+        return qualifiedName === importedName;
+      });
     }
 
     function previewScheduleImport() {
