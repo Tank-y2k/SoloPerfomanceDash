@@ -109,11 +109,24 @@ a.btn { text-decoration: none; }
   background: var(--panel);
   box-shadow: var(--shadow);
   z-index: 40;
+  max-height: calc(100dvh - 76px);
+  overflow-y: auto;
 }
 
 .menu-panel .btn {
   justify-content: flex-start;
   border-radius: 12px;
+}
+
+.menu-group { display: grid; gap: 8px; }
+.menu-group + .menu-group { padding-top: 10px; border-top: 1px solid var(--border); }
+.menu-group-label {
+  padding: 0 8px;
+  color: var(--muted);
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
 }
 
 .grid {
@@ -379,7 +392,7 @@ input:focus, select:focus, textarea:focus {
 }
 
 .schedule-modal { width: min(980px, calc(100vw - 28px)); }
-.day-detail-modal { width: min(1180px, calc(100vw - 28px)); }
+.day-detail-modal { width: min(1180px, calc(100vw - 28px)); max-height: min(88dvh, 920px); overflow: hidden; }
 .day-detail-modal .modal-inner { max-height: min(88vh, 920px); overflow-y: auto; overflow-x: hidden; }
 .detail-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .detail-table th, .detail-table td { padding: 10px 8px; border-bottom: 1px solid var(--border); text-align: right; }
@@ -807,6 +820,23 @@ dialog::backdrop {
 .import-message.error { color: var(--danger); }
 .import-message.success { color: var(--success); }
 
+.department-settings { padding: 0; overflow: hidden; }
+.department-settings summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px;
+  cursor: pointer;
+  font-weight: 800;
+  list-style: none;
+}
+.department-settings summary::-webkit-details-marker { display: none; }
+.department-settings summary::after { content: "+"; color: var(--accent); font-size: 1.25rem; }
+.department-settings[open] summary { border-bottom: 1px solid var(--border); }
+.department-settings[open] summary::after { content: "−"; }
+.department-settings-content { padding: 14px; }
+
 @media (max-width: 760px) {
   .app-shell { width: min(100% - 12px, 1500px); padding: 6px 0; }
   .grid { grid-template-columns: 1fr; display: grid; }
@@ -830,8 +860,10 @@ dialog::backdrop {
   .schedule-row input { grid-column: 2; }
   .schedule-duration { display: none; }
   .outcome-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .outcome-actions [data-outcome="Other"] { grid-column: 1 / -1; width: calc(50% - 5px); justify-self: center; }
   .completion-edit-grid { grid-template-columns: 1fr; }
   .day-detail-modal { width: calc(100vw - 12px); }
+  .day-detail-modal { max-height: calc(100dvh - 12px); }
   .day-detail-modal .modal-inner { padding: 14px; max-height: calc(100dvh - 12px); }
   .day-detail-modal .stats-grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .detail-table thead { display: none; }
@@ -866,17 +898,25 @@ dialog::backdrop {
       <section class="top-actions">
         <button class="btn menu-trigger" id="menuBtn" aria-label="Open menu" aria-expanded="false" aria-controls="topMenuPanel">☰</button>
         <div class="menu-panel hidden" id="topMenuPanel">
-          <a class="btn" href="help.html">Help</a>
-          <button class="btn" id="settingsBtn">Queue Settings</button>
-          <button class="btn" id="notificationsBtn">Notifications</button>
-          <button class="btn" id="planBtn">Schedule</button>
-          <button class="btn" id="scheduleImporterBtn">Import Schedule</button>
-          <button class="btn" id="snapshotBtn">Save Current Plan</button>
-          <button class="btn" id="dayDetailBtn">Day Details</button>
-          <button class="btn warning" id="endDayBtn">End Day Review</button>
-          <button class="btn" id="completedAppsBtn">Completed Apps</button>
-          <button class="btn" id="exportCsvBtn">Export CSV</button>
-          <button class="btn danger" id="resetBtn">Reset Day</button>
+          <div class="menu-group">
+            <a class="btn" href="help.html">Help</a>
+            <button class="btn" id="settingsBtn">Queue Settings</button>
+            <button class="btn" id="notificationsBtn">Notifications</button>
+            <button class="btn" id="dayDetailBtn">Day Details</button>
+            <button class="btn" id="completedAppsBtn">Completed Apps</button>
+          </div>
+          <div class="menu-group">
+            <span class="menu-group-label">Schedule</span>
+            <button class="btn" id="planBtn">Edit Schedule</button>
+            <button class="btn" id="scheduleImporterBtn">Import Schedule</button>
+          </div>
+          <div class="menu-group">
+            <span class="menu-group-label">Day actions</span>
+            <button class="btn" id="snapshotBtn">Save Current Plan</button>
+            <button class="btn" id="exportCsvBtn">Export CSV</button>
+            <button class="btn warning" id="endDayBtn">End Day Review</button>
+            <button class="btn danger" id="resetBtn">Reset Day</button>
+          </div>
         </div>
       </section>
     </header><section class="grid">
@@ -994,15 +1034,17 @@ dialog::backdrop {
     </div>
 
     <div class="queue-list" id="queueList"></div>
-    <section class="panel-soft stack">
-      <h3>Departments</h3>
-      <p class="subtle">Departments group productive queues for current and future work types.</p>
-      <div class="row">
-        <div class="field"><label for="departmentName">Department name</label><input id="departmentName" placeholder="e.g. Reviews" /></div>
-        <button class="btn primary" id="addDepartmentBtn" type="button">Add Department</button>
+    <details class="panel-soft department-settings">
+      <summary>Departments</summary>
+      <div class="stack department-settings-content">
+        <p class="subtle">Departments group productive queues for current and future work types.</p>
+        <div class="row">
+          <div class="field"><label for="departmentName">Department name</label><input id="departmentName" placeholder="e.g. Reviews" /></div>
+          <button class="btn primary" id="addDepartmentBtn" type="button">Add Department</button>
+        </div>
+        <div class="queue-list" id="departmentList"></div>
       </div>
-      <div class="queue-list" id="departmentList"></div>
-    </section>
+    </details>
   </div>
 </form>
 
