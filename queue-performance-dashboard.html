@@ -267,30 +267,34 @@ input:focus, select:focus, textarea:focus {
 
 .tracker-card {
   text-align: center;
-  padding: 22px 20px 20px;
+  padding: 28px 28px 24px;
   border-radius: 24px;
-  background: linear-gradient(135deg, rgba(94, 234, 212, 0.12), rgba(20, 184, 166, 0.04)), var(--panel-soft);
-  border: 1px solid rgba(94, 234, 212, 0.24);
+  background:
+    radial-gradient(circle at 50% 16%, rgba(94, 234, 212, .09), transparent 35%),
+    linear-gradient(145deg, rgba(16, 34, 47, .98), rgba(16, 24, 34, .96));
+  border: 1px solid rgba(81, 154, 190, .52);
+  box-shadow: inset 0 1px rgba(255,255,255,.025), 0 18px 50px rgba(0,0,0,.3);
 }
 
 .timer-display {
-  margin: 5px 0 2px;
-  font-size: clamp(2.8rem, 7vw, 5.5rem);
+  margin: 12px 0 5px;
+  font-size: clamp(3.8rem, 8vw, 6.8rem);
   font-weight: 900;
-  line-height: .95;
-  letter-spacing: -.07em;
+  line-height: .88;
+  letter-spacing: -.065em;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 8px 28px rgba(0,0,0,.36);
 }
 .segment-countdown {
   display: flex;
   justify-content: center;
   align-items: baseline;
   gap: 8px;
-  margin-top: 9px;
+  margin-top: 18px;
   color: var(--muted);
-  font-size: .74rem;
-  font-weight: 700;
-  letter-spacing: .08em;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .12em;
   text-transform: uppercase;
 }
 .segment-countdown-time {
@@ -299,43 +303,72 @@ input:focus, select:focus, textarea:focus {
   font-variant-numeric: tabular-nums;
   letter-spacing: .02em;
 }
-.timer-progress { height: 7px; margin-top: 16px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
-.timer-progress-fill { height: 100%; width: 0; border-radius: inherit; background: var(--accent); transition: width .3s linear; }
-
-.tracker-label {
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
-  font-size: 0.8rem;
-}
-
 .timer-caption {
-  color: var(--muted);
-  font-size: .76rem;
-  font-weight: 700;
-  letter-spacing: .1em;
+  color: #b5b9c5;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .16em;
   text-transform: uppercase;
 }
 
+.tracker-primary-facts {
+  display: flex;
+  justify-content: center;
+  margin: 24px auto 0;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+}
+.tracker-primary-facts .tracker-fact {
+  min-width: 175px;
+  padding: 2px 32px;
+}
+.performance-card {
+  margin: 20px auto 0;
+  max-width: 980px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 18px;
+  background: rgba(4, 10, 16, .14);
+}
+.performance-title {
+  padding: 14px;
+  color: #aeb4c2;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
 .tracker-facts {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  max-width: 980px;
-  margin: 16px auto 0;
+  grid-template-columns: minmax(160px, 1.2fr) repeat(4, minmax(100px, 1fr));
+  margin: 0;
+  border-top: 1px solid rgba(255,255,255,.12);
 }
-
+.performance-row-label {
+  display: grid;
+  place-content: center start;
+  gap: 3px;
+  padding: 14px 20px;
+  text-align: left;
+  color: var(--accent);
+  font-size: .8rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.performance-row-label small { color: var(--muted); font-size: .65rem; letter-spacing: .08em; }
 .tracker-fact {
   display: grid;
-  gap: 3px;
+  gap: 5px;
   min-width: 0;
-  padding: 0 12px;
-  border-left: 1px solid rgba(255, 255, 255, .1);
+  padding: 14px 12px;
+  border-left: 1px solid rgba(255,255,255,.12);
 }
-
-.tracker-fact:first-child { border-left: 0; }
-.tracker-fact-label { color: var(--muted); font-size: .7rem; letter-spacing: .08em; text-transform: uppercase; }
-.tracker-fact-value { font-weight: 700; font-variant-numeric: tabular-nums; }
-.tracker-fact.day-score .tracker-fact-value { color: var(--accent); }
+.tracker-fact-label { color: var(--muted); font-size: .65rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.tracker-fact-value { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tracker-fact.day-score .tracker-fact-value { color: #38d6aa; }
+.timer-progress { height: 9px; margin-top: 18px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.12); }
+.timer-progress-fill { height: 100%; width: 0; border-radius: inherit; background: linear-gradient(90deg, #22c99a, #57e5c3); box-shadow: 0 0 16px rgba(34,201,154,.4); transition: width .3s linear; }
 
 .tracker-meta {
   color: var(--muted);
@@ -784,6 +817,16 @@ input:focus, select:focus, textarea:focus {
   to { transform: scale(1) skew(-6deg) rotate(-2deg); }
 }
 
+.outcome-actions { grid-template-columns: repeat(2, minmax(180px, 1fr)); max-width: 980px; margin: 0 auto; }
+.outcome-actions .btn { min-height: 54px; border-width: 1px; background: rgba(255,255,255,.025); font-size: 1rem; }
+.outcome-actions .btn span { font-size: 1.45rem; line-height: 1; }
+.outcome-actions [data-outcome="Resub"] { color: #60a5fa; border-color: #3b82f6; background: rgba(59,130,246,.09); }
+.outcome-actions [data-outcome="Other"] { grid-column: 1 / -1; width: 50%; justify-self: center; color: #d4d4d8; }
+.main-panel { background: linear-gradient(160deg, rgba(11,25,36,.97), rgba(14,21,30,.98)); border-color: rgba(65,122,151,.5); }
+.day-overview { padding: 4px 2px 0; }
+.day-overview h2, .day-overview h3 { color: #b5bac6; text-transform: uppercase; letter-spacing: .1em; font-size: .85rem; }
+.upcoming-apps { border-color: rgba(65,122,151,.38); background: rgba(4,10,16,.18); }
+
 @media (prefers-reduced-motion: reduce) {
   .final-round, .final-round-title, .outcome-actions .btn.outcome-recorded { animation: none; }
 }
@@ -928,10 +971,12 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
   .panel { padding: 12px; }
   .tracker-card { padding: 18px 12px 16px; }
   .timer-display { font-size: clamp(3rem, 15vw, 4.5rem); }
-  .tracker-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .tracker-fact { padding: 8px; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .1); }
-  .tracker-fact:first-child, .tracker-fact:nth-child(2), .tracker-fact:nth-child(3) { border-top: 0; }
-  .tracker-fact.segment-total { grid-column: 1 / -1; }
+  .tracker-primary-facts { margin-top: 20px; }
+  .tracker-primary-facts .tracker-fact { min-width: 0; padding: 6px 12px; }
+  .performance-card { overflow-x: auto; }
+  .tracker-facts { min-width: 620px; }
+  .tracker-fact { padding: 12px 8px; }
+  .performance-row-label { padding: 12px; }
   .stats-grid, .stats-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
   .stat { padding: 10px 8px; border-radius: 12px; }
   .stat .value { font-size: clamp(.95rem, 4vw, 1.3rem); white-space: nowrap; }
@@ -945,7 +990,6 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
   .schedule-row input { grid-column: 2; }
   .schedule-duration { display: none; }
   .outcome-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .outcome-actions [data-outcome="Other"] { grid-column: 1 / -1; width: calc(50% - 5px); justify-self: center; }
   .completion-edit-grid { grid-template-columns: 1fr; }
   .day-detail-modal { width: calc(100vw - 12px); }
   .day-detail-modal { max-height: calc(100dvh - 12px); }
@@ -1012,27 +1056,34 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <span>Segment ends in</span>
         <time class="segment-countdown-time" id="segmentCountdown">--:--</time>
       </div>
-      <div class="tracker-facts">
-        <div class="tracker-fact"><span class="tracker-fact-label">ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Department</span><span class="tracker-fact-value" id="currentDepartment">--</span></div>
-        <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayEfficiencyLabel">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
-        <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
-        <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAhtLabel">Day AHT</span><span class="tracker-fact-value" id="dayAht">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Segment apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Segment AHT</span><span class="tracker-fact-value" id="segmentAht">--</span></div>
-        <div class="tracker-fact segment-total"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
+      <div class="tracker-primary-facts">
+        <div class="tracker-fact"><span class="tracker-fact-label">◷ &nbsp; ETC</span><span class="tracker-fact-value" id="timerEtc">--:--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Target pace</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">▦ &nbsp; Department</span><span class="tracker-fact-value" id="currentDepartment">--</span></div>
       </div>
-      <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
+      <div class="timer-progress" aria-label="Progress to next target"><div class="timer-progress-fill" id="timerProgress"></div></div>
+      <section class="performance-card" aria-label="Your current performance">
+        <div class="performance-title">Your performance</div>
+        <div class="tracker-facts">
+          <div class="performance-row-label">You <small>Department today</small></div>
+          <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayEfficiencyLabel">Efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
+          <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
+          <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAhtLabel">AHT</span><span class="tracker-fact-value" id="dayAht">--</span></div>
+          <div class="tracker-fact day-score"><span class="tracker-fact-label">Apps</span><span class="tracker-fact-value" id="dayCompleted">--</span></div>
+          <div class="performance-row-label">You <small>This segment</small></div>
+          <div class="tracker-fact"><span class="tracker-fact-label">Efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
+          <div class="tracker-fact"><span class="tracker-fact-label">Apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
+          <div class="tracker-fact"><span class="tracker-fact-label">AHT</span><span class="tracker-fact-value" id="segmentAht">--</span></div>
+          <div class="tracker-fact segment-total"><span class="tracker-fact-label">Apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
+        </div>
+      </section>
     </div>
-
     <div class="outcome-actions" aria-label="Record application outcome">
-      <button class="btn success" type="button" data-outcome="Approve">Approve</button>
-      <button class="btn danger" type="button" data-outcome="Decline">Decline</button>
-      <button class="btn" type="button" data-outcome="Resub">Resub</button>
-      <button class="btn warning" type="button" data-outcome="ORE">ORE</button>
-      <button class="btn" type="button" data-outcome="Other">Other</button>
+      <button class="btn success" type="button" data-outcome="Approve"><span aria-hidden="true">✓</span> Approve</button>
+      <button class="btn danger" type="button" data-outcome="Decline"><span aria-hidden="true">×</span> Decline</button>
+      <button class="btn" type="button" data-outcome="Resub"><span aria-hidden="true">↻</span> Resub</button>
+      <button class="btn warning" type="button" data-outcome="ORE"><span aria-hidden="true">☆</span> ORE</button>
+      <button class="btn" type="button" data-outcome="Other"><span aria-hidden="true">•••</span> Other</button>
     </div>
 
     <section class="stack day-overview">
@@ -1382,6 +1433,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       dayAppsPerHourLabel: document.getElementById("dayAppsPerHourLabel"),
       dayAht: document.getElementById("dayAht"),
       dayAhtLabel: document.getElementById("dayAhtLabel"),
+      dayCompleted: document.getElementById("dayCompleted"),
       segmentAppsPerHour: document.getElementById("segmentAppsPerHour"),
       segmentAht: document.getElementById("segmentAht"),
       segmentCompleted: document.getElementById("segmentCompleted"),
@@ -1682,12 +1734,13 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       const day = getRunningPerformance(null, department?.id || null);
       const current = segment && isProductiveQueue(queue) ? getRunningPerformance(segment) : null;
       els.currentDepartment.textContent = getDepartment(queue?.departmentId)?.name || "--";
-      els.dayEfficiencyLabel.textContent = department ? `${department.name} efficiency` : "Day efficiency";
-      els.dayAppsPerHourLabel.textContent = department ? `${department.name} apps/hr` : "Day apps/hr";
-      els.dayAhtLabel.textContent = department ? `${department.name} AHT` : "Day AHT";
+      els.dayEfficiencyLabel.textContent = "Efficiency";
+      els.dayAppsPerHourLabel.textContent = "Apps/hr";
+      els.dayAhtLabel.textContent = "AHT";
       els.dayEfficiency.textContent = formatMetric(day.efficiency, "%");
       els.dayAppsPerHour.textContent = formatMetric(day.appsPerHour);
       els.dayAht.textContent = formatAht(day.appsPerHour);
+      els.dayCompleted.textContent = state.completions.filter(app => !department || getQueue(app.queueId)?.departmentId === department.id).length;
       els.segmentEfficiency.textContent = formatMetric(current?.efficiency, "%");
       els.segmentAppsPerHour.textContent = formatMetric(current?.appsPerHour);
       els.segmentAht.textContent = formatAht(current?.appsPerHour);
