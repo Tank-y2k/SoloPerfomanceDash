@@ -23,8 +23,7 @@ This document catalogues the Queue Performance Dashboard's persisted data, recor
 | `shiftEnd` | `string` (`HH:MM`) | `19:30` | End of the planned shift and end of the last segment. Must follow `shiftStart`. |
 | `segments` | `Segment[]` | Team Briefings at `11:00` | Today's planned activities. |
 | `completions` | `Completion[]` | `[]` | Applications recorded during the current day. |
-| `activityLog` | `ActivityEntry[]` | `[]` | Human-readable audit events for plan, setting, completion, snapshot, and export actions. |
-| `startingSnapshot` | `Snapshot \| null` | `null` | Saved start-of-day plan used by End Day Review. |
+| `activityLog` | `ActivityEntry[]` | `[]` | Human-readable audit events for plan, setting, completion, and export actions. |
 | `timerStartedAt` | `string \| null` | `null` | Compatibility/tracking field reset on a new day; current timer rendering derives from target slots. |
 | `timerQueueId` | `string \| null` | `null` | Compatibility/tracking queue field reset on a new day. |
 | `notificationsEnabled` | `boolean` | `false` | Whether scheduled target reminders are checked each second. |
@@ -51,7 +50,7 @@ This document catalogues the Queue Performance Dashboard's persisted data, recor
 
 | Field | Type | Required | Meaning |
 |---|---|---:|---|
-| `id` | UUID string | Yes | Stable identifier referenced by segments, completions, and snapshots. |
+| `id` | UUID string | Yes | Stable identifier referenced by segments and completions. |
 | `name` | string | Yes | Display name. Name matching for built-ins is case-insensitive during migration/repair. |
 | `rate` | number | Yes | Expected applications per hour. Zero marks an activity as non-productive. |
 | `color` | CSS colour string | Yes | Colour used in schedule/timeline displays. The UI initially supplies a hex value. |
@@ -87,20 +86,8 @@ Segments must start within the shift and cannot have duplicate start times. Thei
 |---|---|---|
 | `id` | UUID string | Log entry identifier. |
 | `at` | ISO timestamp | Event time. |
-| `type` | string | Event category such as `settings`, `plan`, `complete`, `snapshot`, or `export`. |
+| `type` | string | Event category such as `settings`, `plan`, `complete`, or `export`. |
 | `text` | string | Human-readable event description. |
-
-
-### `Snapshot`
-
-| Field | Type | Meaning |
-|---|---|---|
-| `at` | ISO timestamp | Snapshot time. |
-| `queues` | `Queue[]` | Deep copy of queues at snapshot time. |
-| `segments` | `Segment[]` | Deep copy of the plan at snapshot time. |
-| `shiftStart` | `HH:MM` string | Saved shift start. |
-| `shiftEnd` | `HH:MM` string | Saved shift end. |
-| `expectedFullDay` | number | Sum of saved segment targets. |
 
 
 ## User inputs and settings
@@ -181,6 +168,6 @@ The file is named `queue-history-YYYY-MM-DD.csv`. Every value is quoted and embe
 
 ## Reset and rollover behavior
 
-**Reset Day** restores default shift bounds and a team-briefing segment; clears current completions, logs, snapshot, timer compatibility fields, and notification deduplication fields; retains queue definitions and notification preferences; and updates `dayDate`.
+**Reset Day** restores default shift bounds and a team-briefing segment; clears current completions, logs, timer compatibility fields, and notification deduplication fields; retains queue definitions and notification preferences; and updates `dayDate`.
 
 When the local calendar date changes while the page is open, the dashboard offers to export and reset, reset without export, or skip. Skipping changes `dayDate` to today and opens the schedule without clearing existing live data.

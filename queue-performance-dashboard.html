@@ -652,6 +652,7 @@ input:focus, select:focus, textarea:focus {
 .upcoming-app-number { color: var(--muted); font-size: .75rem; font-weight: 800; }
 .upcoming-app-queue { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .upcoming-app-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 800; }
+.upcoming-app.completed .upcoming-app-time { color: var(--success); }
 .upcoming-app.non-productive {
   background: rgba(255, 255, 255, .035);
   box-shadow: inset 3px 0 var(--queue-color, var(--muted));
@@ -909,7 +910,6 @@ dialog::backdrop {
             <a class="btn" href="help.html">Help</a>
             <button class="btn" id="settingsBtn">Queue Settings</button>
             <button class="btn" id="notificationsBtn">Notifications</button>
-            <button class="btn" id="dayDetailBtn">Day Details</button>
             <button class="btn" id="completedAppsBtn">Completed Apps</button>
           </div>
           <div class="menu-group">
@@ -919,9 +919,8 @@ dialog::backdrop {
           </div>
           <div class="menu-group">
             <span class="menu-group-label">Day actions</span>
-            <button class="btn" id="snapshotBtn">Save Current Plan</button>
+            <button class="btn" id="dayDetailBtn">Day Details</button>
             <button class="btn" id="exportCsvBtn">Export CSV</button>
-            <button class="btn warning" id="endDayBtn">End Day Review</button>
             <button class="btn danger" id="resetBtn">Reset Day</button>
           </div>
         </div>
@@ -962,7 +961,7 @@ dialog::backdrop {
         <span class="pill expected-total" id="expectedAppsTotal" aria-label="0 apps expected">0</span>
       </div>
       <div class="day-timeline" id="dayTimeline"></div>
-      <h3>Upcoming apps</h3>
+      <h3>Scheduled apps</h3>
       <div class="upcoming-apps" id="upcomingApps" aria-live="polite"></div>
     </section>
 
@@ -1058,15 +1057,6 @@ dialog::backdrop {
   </div>
 </form>
 
-  </dialog>  <dialog id="reviewDialog">
-    <form method="dialog" class="modal-inner">
-      <div class="modal-header">
-        <h2>End Day Review</h2>
-        <button class="btn small" value="close">Close</button>
-      </div>
-      <div class="stack" id="reviewContent"></div>
-      <p class="footer-note">Start plan is captured with “Save Current Plan”. Current plan reflects whatever chaos Resource Planning later inflicted.</p>
-    </form>
   </dialog>  <dialog id="dayDetailDialog" class="day-detail-modal">
     <form method="dialog" class="modal-inner stack">
       <div class="modal-header">
@@ -1162,7 +1152,6 @@ dialog::backdrop {
       segments: [{ id: crypto.randomUUID(), queueId: TEAM_BRIEFINGS_ID, start: DEFAULT_SHIFT_START }],
       completions: [],
       activityLog: [],
-      startingSnapshot: null,
       timerStartedAt: null,
       timerQueueId: null,
       notificationsEnabled: false,
@@ -1205,17 +1194,14 @@ dialog::backdrop {
       applyScheduleImportBtn: document.getElementById("applyScheduleImportBtn"),
       scheduleImportMessage: document.getElementById("scheduleImportMessage"),
       scheduleImportPreview: document.getElementById("scheduleImportPreview"),
-      snapshotBtn: document.getElementById("snapshotBtn"),
       dayDetailBtn: document.getElementById("dayDetailBtn"),
       dayDetailDialog: document.getElementById("dayDetailDialog"),
       dayDetailContent: document.getElementById("dayDetailContent"),
-      endDayBtn: document.getElementById("endDayBtn"),
       exportCsvBtn: document.getElementById("exportCsvBtn"),
       resetBtn: document.getElementById("resetBtn"),
       settingsDialog: document.getElementById("settingsDialog"),
       planDialog: document.getElementById("planDialog"),
       planForm: document.getElementById("planForm"),
-      reviewDialog: document.getElementById("reviewDialog"),
       completionDialog: document.getElementById("completionDialog"),
       completedAppsBtn: document.getElementById("completedAppsBtn"),
       newDayDialog: document.getElementById("newDayDialog"),
@@ -1251,7 +1237,6 @@ dialog::backdrop {
       segmentCompleted: document.getElementById("segmentCompleted"),
       timerProgress: document.getElementById("timerProgress"),
       completionHistory: document.getElementById("completionHistory"),
-      reviewContent: document.getElementById("reviewContent"),
       dayTimeline: document.getElementById("dayTimeline"),
       expectedAppsTotal: document.getElementById("expectedAppsTotal"),
       upcomingApps: document.getElementById("upcomingApps")
@@ -1702,19 +1687,27 @@ dialog::backdrop {
     }
 
     function renderUpcomingApps() {
-      const now = nowDate();
-      const upcomingSlots = getScheduledCompletionSlots()
-        .filter(slot => slot.at.getTime() > now.getTime());
+      const slots = getScheduledCompletionSlots();
+      const completionsBySegment = new Map();
+      state.completions.slice().sort((a, b) => new Date(a.at) - new Date(b.at)).forEach(completion => {
+        if (!completion.segmentId) return;
+        const completions = completionsBySegment.get(completion.segmentId) || [];
+        completions.push(completion);
+        completionsBySegment.set(completion.segmentId, completions);
+      });
 
-      // Keep every remaining target in one contained scroller, including
-      // current and upcoming non-productive activities, without retaining
-      // historical targets that are no longer useful for pacing.
+      // Match each scheduled target to the corresponding completion in its
+      // segment. This retains the full-day history while leaving unmatched
+      // targets labelled with their ETC.
+      const appItems = slots.map((slot, index) => ({
+        type: "app",
+        at: slot.at,
+        slot,
+        appIndex: index + 1,
+        completion: completionsBySegment.get(slot.segment.id)?.[slot.appNumber - 1] || null
+      }));
       const nonProductiveSegments = getSortedSegments()
-        .filter(segment => {
-          const queue = getQueue(segment.queueId);
-          const endsAt = getScheduleDateAtMinutes(getSegmentBounds(segment).end);
-          return !isProductiveQueue(queue) && endsAt.getTime() > now.getTime();
-        })
+        .filter(segment => !isProductiveQueue(getQueue(segment.queueId)))
         .map(segment => ({
           type: "activity",
           at: getScheduleDateAtMinutes(getSegmentBounds(segment).start),
@@ -1723,16 +1716,18 @@ dialog::backdrop {
         }));
 
       const items = [
-        ...upcomingSlots.map((slot, index) => ({ type: "app", at: slot.at, slot, appIndex: index + 1 })),
+        ...appItems,
         ...nonProductiveSegments
       ].sort((a, b) => a.at.getTime() - b.at.getTime() || (a.type === "app" ? -1 : 1));
 
+      const nextApp = appItems.find(item => !item.completion);
+
       els.upcomingApps.innerHTML = items.length
         ? items.map(item => item.type === "app" ? `
-            <div class="upcoming-app">
+            <div class="upcoming-app ${item.completion ? "completed" : ""}" ${item === nextApp ? 'data-next-app="true"' : ""}>
               <span class="upcoming-app-number">${item.appIndex}</span>
               <span class="upcoming-app-queue" title="${escapeHtml(item.slot.queue.name)}">${escapeHtml(item.slot.queue.name)}</span>
-              <time class="upcoming-app-time" datetime="${item.at.toISOString()}">${formatClock(item.at.toISOString())}</time>
+              <time class="upcoming-app-time" datetime="${(item.completion ? new Date(item.completion.at) : item.at).toISOString()}">${item.completion ? formatClock(item.completion.at) : `ETC ${formatClock(item.at.toISOString())}`}</time>
             </div>
           ` : `
             <div class="upcoming-app non-productive" style="--queue-color: ${item.queue?.color || "#64748b"};">
@@ -1741,14 +1736,24 @@ dialog::backdrop {
               <span class="upcoming-app-time">${item.segment.start}–${getSegmentEnd(item.segment)}</span>
             </div>
           `).join("")
-        : `<div class="upcoming-empty subtle">No more apps are scheduled today.</div>`;
+        : `<div class="upcoming-empty subtle">No apps are scheduled today.</div>`;
+
+      // Keep the next incomplete target at the top. Recording an early
+      // completion changes the match above, so the view advances immediately.
+      const nextAppElement = els.upcomingApps.querySelector('[data-next-app="true"]');
+      if (nextAppElement) {
+        const firstItem = els.upcomingApps.querySelector(".upcoming-app");
+        els.upcomingApps.scrollTop = nextAppElement.offsetTop - (firstItem?.offsetTop || 0);
+      }
     }
 
     let toastTimeout;
     let finalRoundDismissTimeout;
     let audioContext;
 
-    // An original, compact urgency cue for the Final App overlay. Notes are
+    const FINAL_ROUND_DURATION_MS = 30_000;
+
+    // An original, compact 30-second urgency cue for the Final App overlay. Notes are
     // scheduled against the audio clock, so the rhythm stays musical even if
     // the UI thread is busy, and every created node is retained for immediate
     // cleanup when the cue expires or is interrupted.
@@ -1781,9 +1786,9 @@ dialog::backdrop {
           audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
           if (audioContext.state === "suspended") audioContext.resume();
 
-          const startedAt = Date.now();
           const deadlineAt = deadline.getTime();
-          const durationMs = Math.max(1, deadlineAt - startedAt);
+          const durationMs = FINAL_ROUND_DURATION_MS;
+          const startedAt = deadlineAt - durationMs;
           masterGain = audioContext.createGain();
           masterGain.gain.value = .16;
           masterGain.connect(audioContext.destination);
@@ -1819,7 +1824,7 @@ dialog::backdrop {
             nextBeatTimeout = setTimeout(scheduleBeat, Math.min(beatLength * 1000, remainingMs));
           }
           scheduleBeat();
-          endTimeout = setTimeout(stop, durationMs);
+          endTimeout = setTimeout(stop, Math.max(0, deadlineAt - Date.now()));
         } catch {
           stop(); // The visual finale still works when Web Audio is unavailable.
         }
@@ -1842,7 +1847,8 @@ dialog::backdrop {
     function checkFinalRound(slot, now) {
       if (els.planDialog.open) return;
       if (!slot || slot.appNumber !== slot.expectedApps) return;
-      if (now < slot.previousAt || getPlannedSegmentAtNow()?.id !== slot.segment.id) return;
+      const startsAt = new Date(slot.at.getTime() - FINAL_ROUND_DURATION_MS);
+      if (now < startsAt || now >= slot.at || getPlannedSegmentAtNow()?.id !== slot.segment.id) return;
       const segmentKey = `${localDateKey()}|${slot.segment.id}`;
       if (state.lastFinalRoundSegment === segmentKey) return;
 
@@ -1951,7 +1957,7 @@ dialog::backdrop {
       state.lastNotifiedSlot = latest
         ? `${localDateKey()}|${latest.segment.id}|${latest.at.toISOString()}`
         : null;
-      if (next?.appNumber === next?.expectedApps && now >= next.previousAt) {
+      if (next?.appNumber === next?.expectedApps && now >= new Date(next.at.getTime() - FINAL_ROUND_DURATION_MS)) {
         state.lastFinalRoundSegment = `${localDateKey()}|${next.segment.id}`;
       }
       saveState();
@@ -2159,55 +2165,6 @@ dialog::backdrop {
       logActivity("export", `Exported CSV for ${state.completions.length} completions.`);
     }
 
-    function saveSnapshot() {
-      state.startingSnapshot = {
-        at: nowIso(),
-        queues: structuredClone(state.queues),
-        segments: structuredClone(state.segments),
-        shiftStart: state.shiftStart,
-        shiftEnd: state.shiftEnd,
-        expectedFullDay: getExpectedFullDay()
-      };
-      logActivity("snapshot", "Saved current plan as start-of-day snapshot.");
-      renderAll();
-    }
-
-    function showReview() {
-      const startExpected = state.startingSnapshot?.expectedFullDay ?? null;
-      const currentExpected = getExpectedFullDay();
-      const completed = state.completions.length;
-      const currentVariance = completed - currentExpected;
-      const snapshotTime = state.startingSnapshot ? formatClock(state.startingSnapshot.at) : "Not saved";
-
-      const startSegmentsHtml = state.startingSnapshot?.segments?.length
-        ? state.startingSnapshot.segments.map(segment => {
-          const queue = state.startingSnapshot.queues.find(q => q.id === segment.queueId);
-          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${getSnapshotSegmentEnd(segment)}</span><span>${getSnapshotSegmentExpected(segment).toFixed(1)} apps</span></div>`;
-        }).join("")
-        : `<p class="subtle">No start snapshot saved.</p>`;
-
-      const currentSegmentsHtml = state.segments.length
-        ? state.segments.map(segment => {
-          const queue = getQueue(segment.queueId);
-          return `<div class="mini-table-row"><strong>${escapeHtml(queue?.name || "Missing queue")}</strong><span>${segment.start} to ${getSegmentEnd(segment)}</span><span>${getSegmentExpectedWholeApps(segment)} apps</span></div>`;
-        }).join("")
-        : `<p class="subtle">No current plan segments.</p>`;
-
-
-      els.reviewContent.innerHTML = `
-        <section class="stats-grid">
-          <article class="stat"><div class="value">${completed}</div><div class="label">Completed today</div></article>
-          <article class="stat"><div class="value">${currentExpected.toFixed(1)}</div><div class="label">Current expected total</div></article>
-          <article class="stat ${currentVariance >= 0 ? "good" : "bad"}"><div class="value">${currentVariance >= 0 ? "+" : ""}${currentVariance.toFixed(1)}</div><div class="label">Final variance</div></article>
-          <article class="stat"><div class="value">${startExpected === null ? "--" : startExpected.toFixed(1)}</div><div class="label">Start expected total</div></article>
-        </section>
-        <section class="panel"><h3>Start-of-day plan · ${snapshotTime}</h3><div class="table-like">${startSegmentsHtml}</div></section>
-        <section class="panel"><h3>Current / end-of-day plan</h3><div class="table-like">${currentSegmentsHtml}</div></section>
-      `;
-
-      els.reviewDialog.showModal();
-    }
-
     function getDayDetailSummary(segments, exactSegments = false) {
       const productiveSegments = segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
       const segmentIds = new Set(productiveSegments.map(segment => segment.id));
@@ -2291,28 +2248,14 @@ dialog::backdrop {
       els.dayDetailDialog.showModal();
     }
 
-    function getSnapshotSegmentExpected(segment) {
-      return getSegmentTargetPlan(
-        segment,
-        state.startingSnapshot.segments,
-        state.startingSnapshot.queues,
-        state.startingSnapshot.shiftEnd || state.shiftEnd
-      ).expectedApps;
-    }
-
-    function getSnapshotSegmentEnd(segment) {
-      return timeFromMinutes(getSegmentBounds(segment, state.startingSnapshot.segments, state.startingSnapshot.shiftEnd || state.shiftEnd).end);
-    }
-
     function resetDay(skipConfirmation = false, openSchedule = false) {
-      if (!skipConfirmation && !confirm("Reset today’s segments, completions, logs, and snapshot? Queue settings will be kept.")) return;
+      if (!skipConfirmation && !confirm("Reset today’s segments, completions, and logs? Queue settings will be kept.")) return;
       const briefingQueue = ensureTeamBriefingsQueue();
       state.shiftStart = DEFAULT_SHIFT_START;
       state.shiftEnd = DEFAULT_SHIFT_END;
       state.segments = [{ id: crypto.randomUUID(), queueId: briefingQueue.id, start: DEFAULT_SHIFT_START }];
       state.completions = [];
       state.activityLog = [];
-      state.startingSnapshot = null;
       state.timerStartedAt = null;
       state.timerQueueId = null;
       state.lastNotifiedSlot = null;
@@ -2442,7 +2385,6 @@ dialog::backdrop {
       state.shiftStart = pendingScheduleImport.shiftStart;
       state.shiftEnd = pendingScheduleImport.shiftEnd;
       state.segments = importedSegments;
-      state.startingSnapshot = null;
       state.lastNotifiedSlot = null;
       state.lastFinalRoundSegment = null;
       logActivity("plan", `Imported ${importedSegments.length} activities from ${pendingScheduleImport.dateLabel}.`);
@@ -2673,9 +2615,7 @@ dialog::backdrop {
     els.planDialog.addEventListener("cancel", event => {
       if (!validateScheduleBeforeClose()) event.preventDefault();
     });
-    els.snapshotBtn.addEventListener("click", saveSnapshot);
     els.dayDetailBtn.addEventListener("click", showDayDetails);
-    els.endDayBtn.addEventListener("click", showReview);
     els.completedAppsBtn.addEventListener("click", () => els.completionDialog.showModal());
     els.completionHistory.addEventListener("change", event => {
       const completionTimeId = event.target.dataset.completionTime;

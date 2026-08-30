@@ -21,8 +21,8 @@ No installation or compilation is required.
 1. Open **Menu → Queue Settings** and confirm each productive queue's department and apps-per-hour rate.
 2. Open **Menu → Schedule** to build the day manually, or use **Menu → Import Schedule** to paste and preview a copied scheduling-system day before replacing the plan. Each activity lasts until the next activity begins; the final activity ends with the shift.
 3. During a productive scheduled segment, select **Approve**, **Decline**, **Resub**, **ORE**, or **Other** to record its outcome.
-4. Optionally choose **Save Current Plan** near the start of the day so the end-day review can compare the original and current plans.
-5. Use **End Day Review** to review totals, then **Export CSV** before **Reset Day**.
+4. Use **Day Details** under **Day actions** to review totals and performance.
+5. Choose **Export CSV** before **Reset Day** when you need an external record.
 
 See the [complete user guide](help.html) for every feature and setting.
 
@@ -44,6 +44,8 @@ For each productive schedule segment, the dashboard calculates the raw target as
 
 A positive raw target is rounded **up** to the next whole application. A user can reduce that rounded segment target by one (never below zero) from the day timeline. Target slots are distributed evenly through the segment. Like a runner’s or drummer’s pacing track, the timer continuously counts to the next scheduled beat and then moves on to the following one; missed beats do not accumulate.
 
+The scheduled-app list retains earlier targets. Completed targets show their actual completion time, while incomplete targets show their ETC. It automatically positions the next incomplete target at the top, including immediately after an application is completed ahead of its ETC.
+
 Queues with a rate of zero are non-productive and create no target slots. Built-in **Non-productive**, **Off queue**, and **Team Briefings** activities are locked and always have a zero rate.
 
 The live tracker also reports current-department and current-segment apps/hour and efficiency. Department performance is isolated, so work recorded in AA/PCA does not alter BCA efficiency (or vice versa). Efficiency compares recorded completions with the unrounded target earned over relevant productive time elapsed so far, so it updates continuously rather than waiting for a whole target slot.
@@ -56,7 +58,7 @@ Productive queues belong to a department. The built-in departments are **BCA** a
 
 ## Notifications
 
-Scheduled reminders appear as in-page toasts and require the dashboard tab to remain open. Sound can be enabled separately. The app cannot remind you after the tab is closed.
+Scheduled reminders appear as in-page toasts and require the dashboard tab to remain open. Sound can be enabled separately. Final App urgency music is limited to the final 30 seconds before the last target in a productive segment. The app cannot remind you after the tab is closed.
 
 ## CSV export
 
