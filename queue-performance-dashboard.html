@@ -319,7 +319,7 @@ input:focus, select:focus, textarea:focus {
 
 .tracker-facts {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   max-width: 980px;
   margin: 16px auto 0;
 }
@@ -928,9 +928,10 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
   .panel { padding: 12px; }
   .tracker-card { padding: 18px 12px 16px; }
   .timer-display { font-size: clamp(3rem, 15vw, 4.5rem); }
-  .tracker-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tracker-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .tracker-fact { padding: 8px; border-left: 0; border-top: 1px solid rgba(255, 255, 255, .1); }
-  .tracker-fact:first-child, .tracker-fact:nth-child(2) { border-top: 0; }
+  .tracker-fact:first-child, .tracker-fact:nth-child(2), .tracker-fact:nth-child(3) { border-top: 0; }
+  .tracker-fact.segment-total { grid-column: 1 / -1; }
   .stats-grid, .stats-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
   .stat { padding: 10px 8px; border-radius: 12px; }
   .stat .value { font-size: clamp(.95rem, 4vw, 1.3rem); white-space: nowrap; }
@@ -1015,10 +1016,12 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <div class="tracker-fact"><span class="tracker-fact-label">Target</span><span class="tracker-fact-value" id="timerTarget">--:--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Department</span><span class="tracker-fact-value" id="currentDepartment">--</span></div>
         <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayEfficiencyLabel">Day efficiency</span><span class="tracker-fact-value" id="dayEfficiency">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
         <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAppsPerHourLabel">Day apps/hr</span><span class="tracker-fact-value" id="dayAppsPerHour">--</span></div>
+        <div class="tracker-fact day-score"><span class="tracker-fact-label" id="dayAhtLabel">Day AHT</span><span class="tracker-fact-value" id="dayAht">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Segment efficiency</span><span class="tracker-fact-value" id="segmentEfficiency">--</span></div>
         <div class="tracker-fact"><span class="tracker-fact-label">Segment apps/hr</span><span class="tracker-fact-value" id="segmentAppsPerHour">--</span></div>
-        <div class="tracker-fact"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
+        <div class="tracker-fact"><span class="tracker-fact-label">Segment AHT</span><span class="tracker-fact-value" id="segmentAht">--</span></div>
+        <div class="tracker-fact segment-total"><span class="tracker-fact-label">Segment apps</span><span class="tracker-fact-value" id="segmentCompleted">--</span></div>
       </div>
       <div class="timer-progress"><div class="timer-progress-fill" id="timerProgress"></div></div>
     </div>
@@ -1376,7 +1379,10 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       segmentEfficiency: document.getElementById("segmentEfficiency"),
       dayAppsPerHour: document.getElementById("dayAppsPerHour"),
       dayAppsPerHourLabel: document.getElementById("dayAppsPerHourLabel"),
+      dayAht: document.getElementById("dayAht"),
+      dayAhtLabel: document.getElementById("dayAhtLabel"),
       segmentAppsPerHour: document.getElementById("segmentAppsPerHour"),
+      segmentAht: document.getElementById("segmentAht"),
       segmentCompleted: document.getElementById("segmentCompleted"),
       timerProgress: document.getElementById("timerProgress"),
       completionHistory: document.getElementById("completionHistory"),
@@ -1657,6 +1663,17 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       return Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : "--";
     }
 
+    function formatAht(appsPerHour) {
+      if (!Number.isFinite(appsPerHour) || appsPerHour <= 0) return "--";
+      const totalSeconds = Math.round(3600 / appsPerHour);
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const seconds = totalSeconds % 60;
+      return hours > 0
+        ? `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+        : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+    }
+
     function renderPerformance() {
       const segment = getCurrentSegment();
       const queue = segment ? getQueue(segment.queueId) : null;
@@ -1666,10 +1683,13 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       els.currentDepartment.textContent = getDepartment(queue?.departmentId)?.name || "--";
       els.dayEfficiencyLabel.textContent = department ? `${department.name} efficiency` : "Day efficiency";
       els.dayAppsPerHourLabel.textContent = department ? `${department.name} apps/hr` : "Day apps/hr";
+      els.dayAhtLabel.textContent = department ? `${department.name} AHT` : "Day AHT";
       els.dayEfficiency.textContent = formatMetric(day.efficiency, "%");
       els.dayAppsPerHour.textContent = formatMetric(day.appsPerHour);
+      els.dayAht.textContent = formatAht(day.appsPerHour);
       els.segmentEfficiency.textContent = formatMetric(current?.efficiency, "%");
       els.segmentAppsPerHour.textContent = formatMetric(current?.appsPerHour);
+      els.segmentAht.textContent = formatAht(current?.appsPerHour);
       const segmentCompleted = segment ? state.completions.filter(app => app.segmentId === segment.id).length : 0;
       const segmentTarget = segment && isProductiveQueue(queue) ? getSegmentExpectedWholeApps(segment) : 0;
       els.segmentCompleted.textContent = segment && isProductiveQueue(queue) ? `${segmentCompleted}/${segmentTarget}` : "--";
