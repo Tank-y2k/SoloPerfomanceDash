@@ -88,6 +88,7 @@ a.btn { text-decoration: none; }
 }
 
 .outcome-actions {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(5, minmax(100px, 1fr));
   gap: 10px;
@@ -95,6 +96,40 @@ a.btn { text-decoration: none; }
 }
 
 .outcome-actions .btn { min-height: 46px; }
+
+.outcome-actions .btn.outcome-recorded {
+  animation: outcome-button-hit .42s cubic-bezier(.2, .9, .3, 1.35);
+}
+
+.outcome-feedback {
+  position: absolute;
+  left: var(--feedback-x, 50%);
+  bottom: calc(100% + 8px);
+  z-index: 10;
+  pointer-events: none;
+  color: var(--success);
+  font-size: .86rem;
+  font-weight: 900;
+  letter-spacing: .02em;
+  white-space: nowrap;
+  text-shadow: 0 2px 10px var(--bg), 0 0 12px rgba(134, 239, 172, .45);
+  transform: translateX(-50%);
+  opacity: 0;
+}
+
+.outcome-feedback.visible {
+  animation: outcome-feedback-pop .9s ease-out both;
+}
+
+@keyframes outcome-button-hit {
+  45% { transform: scale(.92); filter: brightness(1.35); box-shadow: 0 0 0 4px rgba(134, 239, 172, .2); }
+}
+
+@keyframes outcome-feedback-pop {
+  0% { opacity: 0; transform: translate(-50%, 8px) scale(.85); }
+  20%, 65% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -12px) scale(.96); }
+}
 
 .menu-panel {
   position: absolute;
@@ -768,7 +803,8 @@ input:focus, select:focus, textarea:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .final-round, .final-round-title { animation: none; }
+  .final-round, .final-round-title, .outcome-actions .btn.outcome-recorded, .outcome-feedback.visible { animation: none; }
+  .outcome-feedback.visible { opacity: 1; }
 }
 .row-flex { flex: 1; }
 .field-max-280 { max-width: 280px; }
@@ -946,6 +982,7 @@ dialog::backdrop {
       <button class="btn" type="button" data-outcome="Resub">Resub</button>
       <button class="btn warning" type="button" data-outcome="ORE">ORE</button>
       <button class="btn" type="button" data-outcome="Other">Other</button>
+      <span class="outcome-feedback" id="outcomeFeedback" role="status" aria-live="polite"></span>
     </div>
 
     <section class="stack day-overview">
@@ -1243,6 +1280,9 @@ dialog::backdrop {
       expectedAppsTotal: document.getElementById("expectedAppsTotal"),
       upcomingApps: document.getElementById("upcomingApps")
     };
+
+    const outcomeFeedback = document.getElementById("outcomeFeedback");
+    let outcomeFeedbackTimeout;
 
     function loadState() {
       try {
@@ -2049,6 +2089,26 @@ dialog::backdrop {
       finalRoundUrgencyCue.stop();
       logActivity("complete", `Recorded ${outcome} from ${queue.name}.`);
       renderAll();
+      return { queue, count: state.completions.filter(item => item.segmentId === segment.id).length };
+    }
+
+    function showOutcomeFeedback(button, outcome, completionResult) {
+      button.classList.remove("outcome-recorded");
+      outcomeFeedback.classList.remove("visible");
+
+      // Force the animations to restart when the same outcome is recorded quickly.
+      void button.offsetWidth;
+      const actionsRect = button.parentElement.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      outcomeFeedback.style.setProperty("--feedback-x", `${buttonRect.left - actionsRect.left + buttonRect.width / 2}px`);
+      outcomeFeedback.textContent = `✓ ${outcome} recorded · ${completionResult.count} in this segment`;
+      button.classList.add("outcome-recorded");
+      outcomeFeedback.classList.add("visible");
+      clearTimeout(outcomeFeedbackTimeout);
+      outcomeFeedbackTimeout = setTimeout(() => {
+        button.classList.remove("outcome-recorded");
+        outcomeFeedback.classList.remove("visible");
+      }, 1000);
     }
 
     function updateCompletionTime(completionId, localTime) {
@@ -2497,8 +2557,11 @@ dialog::backdrop {
     });
 
     document.querySelector(".outcome-actions").addEventListener("click", event => {
-      const outcome = event.target.dataset.outcome;
-      if (outcome) completeApp(outcome);
+      const button = event.target.closest("[data-outcome]");
+      if (!button) return;
+      const outcome = button.dataset.outcome;
+      const completionResult = completeApp(outcome);
+      if (completionResult) showOutcomeFeedback(button, outcome, completionResult);
     });
 
     els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
