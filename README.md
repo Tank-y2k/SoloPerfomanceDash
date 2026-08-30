@@ -58,7 +58,7 @@ Productive queues belong to a department. The built-in departments are **BCA** a
 
 ## Notifications
 
-Scheduled reminders appear as in-page toasts and require the dashboard tab to remain open. Sound can be enabled separately. Final App urgency music is limited to the final 30 seconds before the last target in a productive segment. The app cannot remind you after the tab is closed.
+Scheduled reminders appear as in-page toasts and require the dashboard tab to remain open. Sound can be enabled separately. The Final App splash appears when the final target window begins, so its lead time follows the segment’s app cadence. Separately, optional escalating music plays during the final 30 seconds of every segment, including non-productive activities. The app cannot remind you after the tab is closed.
 
 ## CSV export
 

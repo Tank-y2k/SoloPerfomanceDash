@@ -1012,7 +1012,7 @@ dialog::backdrop {
           <input id="outcomeClickSound" type="checkbox" style="width: auto;" /> Play a click when recording outcomes
         </label>
         <label class="row" style="text-transform: none; letter-spacing: 0;">
-          <input id="finalRoundMusic" type="checkbox" style="width: auto;" /> Play urgency music for Final App
+          <input id="finalRoundMusic" type="checkbox" style="width: auto;" /> Play escalating music for the final 30 seconds of each segment
         </label>
       </section>
       <p class="footer-note">Toasts only appear while this page is open. Sound may also require a user interaction before the browser allows it.</p>
@@ -1778,14 +1778,15 @@ dialog::backdrop {
     let toastTimeout;
     let finalRoundDismissTimeout;
     let audioContext;
+    let urgencyMusicSegmentKey = null;
 
-    const FINAL_ROUND_DURATION_MS = 30_000;
+    const ESCALATING_MUSIC_DURATION_MS = 30_000;
 
-    // An original, compact 30-second urgency cue for the Final App overlay. Notes are
+    // An original, compact urgency cue for the final 30 seconds of any segment. Notes are
     // scheduled against the audio clock, so the rhythm stays musical even if
     // the UI thread is busy, and every created node is retained for immediate
     // cleanup when the cue expires or is interrupted.
-    const finalRoundUrgencyCue = (() => {
+    const segmentUrgencyCue = (() => {
       let activeVoices = new Set();
       let masterGain = null;
       let nextBeatTimeout = null;
@@ -1815,7 +1816,7 @@ dialog::backdrop {
           if (audioContext.state === "suspended") audioContext.resume();
 
           const deadlineAt = deadline.getTime();
-          const durationMs = FINAL_ROUND_DURATION_MS;
+          const durationMs = ESCALATING_MUSIC_DURATION_MS;
           const startedAt = deadlineAt - durationMs;
           masterGain = audioContext.createGain();
           masterGain.gain.value = .16;
@@ -1854,7 +1855,7 @@ dialog::backdrop {
           scheduleBeat();
           endTimeout = setTimeout(stop, Math.max(0, deadlineAt - Date.now()));
         } catch {
-          stop(); // The visual finale still works when Web Audio is unavailable.
+          stop(); // Segment timing and the separate Final App splash still work without Web Audio.
         }
       }
 
@@ -1867,16 +1868,22 @@ dialog::backdrop {
       els.finalRound.classList.add("hidden");
     }
 
-    function interruptFinalRound() {
+    function interruptFinaleProcesses() {
       dismissFinalRound();
-      finalRoundUrgencyCue.stop();
+      segmentUrgencyCue.stop();
+      urgencyMusicSegmentKey = null;
+    }
+
+    function getFinalAppSplashStart(slot) {
+      const rate = Number(slot?.queue?.rate || 0);
+      const finalAppWindowMs = rate > 0 ? 3_600_000 / rate : 0;
+      return new Date(slot.at.getTime() - finalAppWindowMs);
     }
 
     function checkFinalRound(slot, now) {
       if (els.planDialog.open) return;
       if (!slot || slot.appNumber !== slot.expectedApps) return;
-      const startsAt = new Date(slot.at.getTime() - FINAL_ROUND_DURATION_MS);
-      if (now < startsAt || now >= slot.at || getPlannedSegmentAtNow()?.id !== slot.segment.id) return;
+      if (now < getFinalAppSplashStart(slot) || now >= slot.at || getPlannedSegmentAtNow()?.id !== slot.segment.id) return;
       const segmentKey = `${localDateKey()}|${slot.segment.id}`;
       if (state.lastFinalRoundSegment === segmentKey) return;
 
@@ -1886,12 +1893,30 @@ dialog::backdrop {
       els.finalRoundDetail.textContent = `The final scheduled app for this segment is due by ${formatClock(slot.at.toISOString())}.`;
       els.finalRound.classList.remove("hidden");
       els.dismissFinalRoundBtn.focus();
-      finalRoundUrgencyCue.start(slot.at);
       clearTimeout(finalRoundDismissTimeout);
       finalRoundDismissTimeout = setTimeout(
         dismissFinalRound,
         Math.max(0, slot.at.getTime() - Date.now())
       );
+    }
+
+    function checkSegmentUrgencyMusic(segment, segmentEnd, now) {
+      const remainingMs = segmentEnd ? segmentEnd.getTime() - now.getTime() : 0;
+      const segmentKey = segment ? `${localDateKey()}|${segment.id}` : null;
+      const shouldPlay = !els.planDialog.open
+        && state.finalRoundMusic !== false
+        && segmentKey
+        && remainingMs > 0
+        && remainingMs <= ESCALATING_MUSIC_DURATION_MS;
+
+      if (!shouldPlay) {
+        if (urgencyMusicSegmentKey) segmentUrgencyCue.stop();
+        urgencyMusicSegmentKey = null;
+        return;
+      }
+      if (urgencyMusicSegmentKey === segmentKey) return;
+      urgencyMusicSegmentKey = segmentKey;
+      segmentUrgencyCue.start(segmentEnd);
     }
 
     function renderNotificationStatus() {
@@ -1985,7 +2010,7 @@ dialog::backdrop {
       state.lastNotifiedSlot = latest
         ? `${localDateKey()}|${latest.segment.id}|${latest.at.toISOString()}`
         : null;
-      if (next?.appNumber === next?.expectedApps && now >= new Date(next.at.getTime() - FINAL_ROUND_DURATION_MS)) {
+      if (next?.appNumber === next?.expectedApps && now >= getFinalAppSplashStart(next)) {
         state.lastFinalRoundSegment = `${localDateKey()}|${next.segment.id}`;
       }
       saveState();
@@ -1995,7 +2020,7 @@ dialog::backdrop {
       clearTimeout(toastTimeout);
       toastTimeout = null;
       els.notificationToast.classList.add("hidden");
-      interruptFinalRound();
+      interruptFinaleProcesses();
     }
 
     function renderTimer() {
@@ -2009,6 +2034,7 @@ dialog::backdrop {
       els.segmentCountdown.textContent = segmentEnd
         ? formatDuration((segmentEnd.getTime() - now.getTime()) / 1000)
         : "--:--";
+      checkSegmentUrgencyMusic(plannedSegment, segmentEnd, now);
       const slots = getScheduledCompletionSlots();
       const currentSlots = plannedSegment ? slots.filter(slot => slot.segment.id === plannedSegment.id) : [];
       const nextSlot = currentSlots.find(slot => slot.at.getTime() > now.getTime());
@@ -2114,7 +2140,6 @@ dialog::backdrop {
         outcome
       };
       state.completions.push(completion);
-      finalRoundUrgencyCue.stop();
       logActivity("complete", `Recorded ${outcome} from ${queue.name}.`);
       renderAll();
       playOutcomeClickSound();
@@ -2548,7 +2573,10 @@ dialog::backdrop {
     els.finalRoundMusic.addEventListener("change", () => {
       state.finalRoundMusic = els.finalRoundMusic.checked;
       saveState();
-      if (!state.finalRoundMusic) finalRoundUrgencyCue.stop();
+      if (!state.finalRoundMusic) {
+        segmentUrgencyCue.stop();
+        urgencyMusicSegmentKey = null;
+      }
     });
     els.menuBtn.addEventListener("click", () => {
       const isOpen = els.topMenuPanel.classList.toggle("hidden") === false;
