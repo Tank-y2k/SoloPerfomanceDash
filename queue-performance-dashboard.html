@@ -341,7 +341,7 @@ input:focus, select:focus, textarea:focus {
 }
 .tracker-facts {
   display: grid;
-  grid-template-columns: minmax(105px, 1.15fr) repeat(3, minmax(82px, 1fr));
+  grid-template-columns: minmax(105px, 1.15fr) repeat(4, minmax(72px, 1fr));
   margin: 0;
   border-top: 1px solid rgba(255,255,255,.12);
 }
@@ -1748,6 +1748,9 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         const queue = getQueue(item.queueId);
         return sum + getElapsedSegmentHours(item) * Number(queue?.rate || 0);
       }, 0);
+      const targetPlans = segments.map(item => getSegmentTargetPlan(item));
+      const plannedRawExpected = targetPlans.reduce((sum, plan) => sum + plan.rawExpectedApps, 0);
+      const plannedWholeApps = targetPlans.reduce((sum, plan) => sum + plan.expectedApps, 0);
       const segmentIds = new Set(segments.map(item => item.id));
       const now = nowDate();
       const completed = state.completions.filter(app => {
@@ -1756,6 +1759,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         return !departmentId || getQueue(app.queueId)?.departmentId === departmentId;
       }).length;
       return {
+        predictedEfficiency: plannedRawExpected > 0 ? (plannedWholeApps / plannedRawExpected) * 100 : null,
         appsPerHour: elapsedHours > 0 ? completed / elapsedHours : null,
         efficiency: expected > 0 ? (completed / expected) * 100 : null
       };
@@ -1801,6 +1805,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       els.currentDepartment.textContent = getDepartment(queue?.departmentId)?.name || "--";
       els.performanceRows.innerHTML = rows.length ? rows.map(row => `
         <div class="performance-row-label${row.active ? " active" : ""}">${escapeHtml(row.label)}</div>
+        <div class="tracker-fact${row.active ? " day-score" : ""}"><span class="tracker-fact-label">Predicted efficiency</span><span class="tracker-fact-value">${formatMetric(row.performance.predictedEfficiency, "%")}</span></div>
         <div class="tracker-fact${row.active ? " day-score" : ""}"><span class="tracker-fact-label">Efficiency</span><span class="tracker-fact-value">${formatMetric(row.performance.efficiency, "%")}</span></div>
         <div class="tracker-fact${row.active ? " day-score" : ""}"><span class="tracker-fact-label">Apps/hr</span><span class="tracker-fact-value">${formatMetric(row.performance.appsPerHour)}</span></div>
         <div class="tracker-fact${row.active ? " day-score" : ""}"><span class="tracker-fact-label">AHT</span><span class="tracker-fact-value">${formatAht(row.performance.appsPerHour)}</span></div>
@@ -2623,7 +2628,9 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       });
     });
 
-    function showDayDetails() {
+    function renderDayDetails() {
+      const detailScroller = els.dayDetailDialog.querySelector(".modal-inner");
+      const previousScrollTop = detailScroller?.scrollTop || 0;
       const productive = state.segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
       const wholeDay = getDayDetailSummary(productive);
       const nonProductiveMinutes = state.segments.filter(segment => !isProductiveQueue(getQueue(segment.queueId))).reduce((sum, segment) => sum + getSegmentMinutes(segment), 0);
@@ -2654,6 +2661,11 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="9" class="subtle">No productive departments scheduled.</td></tr>')}</section>
         <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="9" class="subtle">No productive queues scheduled.</td></tr>')}</section>
         <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="9" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
+      if (detailScroller) detailScroller.scrollTop = previousScrollTop;
+    }
+
+    function showDayDetails() {
+      renderDayDetails();
       openWorkspaceDialog(els.dayDetailDialog);
     }
 
@@ -3075,7 +3087,12 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       const hasOpenWorkspace = workspaceDialogs.some(id => document.getElementById(id)?.open);
       if (event.matches && !hasOpenWorkspace && state.dayDate === localDateKey()) showDayDetails();
     });
-    setInterval(() => { renderTimer(); renderUpcomingApps(); checkDueNotifications(); }, 1000);
+    setInterval(() => {
+      renderTimer();
+      renderUpcomingApps();
+      if (els.dayDetailDialog.open) renderDayDetails();
+      checkDueNotifications();
+    }, 1000);
     setInterval(checkForNewDay, 60000);
   </script></body>
   </html>
