@@ -66,7 +66,7 @@ Built-in locked queues are **Non-productive** (`#71717a`), **Off queue** (`#f59e
 | `id` | UUID string | Yes | Segment identifier. |
 | `queueId` | UUID string | Yes | Queue/activity assigned to the segment. |
 | `start` | string (`HH:MM`) | Yes | Segment start. It ends at the next segment start or `shiftEnd`. |
-| `targetAdjustment` | `0 \| -1` | No | Manual reduction of the rounded segment target by one; absent behaves as `0`. |
+| `targetAdjustment` | integer | No | Whole-app adjustment added to the rounded segment target; absent behaves as `0`, and negative values are limited so the target cannot fall below zero. |
 
 Segments must start within the shift and cannot have duplicate start times. Their array is sorted by start time after editing.
 

@@ -442,6 +442,10 @@ input:focus, select:focus, textarea:focus {
 .detail-table th { color: var(--muted); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; }
 .detail-table .detail-name { display: flex; align-items: center; gap: 8px; font-weight: 800; }
 .detail-table .detail-sub { color: var(--muted); font-size: .78rem; font-weight: 400; }
+.target-adjuster { display: inline-flex; align-items: center; justify-content: flex-end; gap: 7px; }
+.target-adjuster .btn { width: 30px; height: 30px; padding: 0; font-size: 1.05rem; font-weight: 900; }
+.target-adjuster output { min-width: 2ch; text-align: center; font-weight: 800; }
+.target-adjuster .btn:disabled { cursor: not-allowed; opacity: .35; transform: none; }
 .detail-section-heading { margin-bottom: 8px; }
 .schedule-toolbar {
   display: grid;
@@ -617,34 +621,6 @@ input:focus, select:focus, textarea:focus {
   line-height: 1;
   text-shadow: 0 1px 3px rgba(0,0,0,.8);
   white-space: nowrap;
-}
-
-.timeline-adjust {
-  flex: 0 0 26px;
-  width: 26px;
-  height: 26px;
-  margin-right: 5px;
-  padding: 0;
-  border: 1px solid rgba(255, 255, 255, .55);
-  border-radius: 999px;
-  background: rgba(10, 10, 12, .62);
-  color: #fff;
-  font-size: 1rem;
-  font-weight: 900;
-  line-height: 1;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .3);
-}
-
-.timeline-adjust:hover,
-.timeline-adjust:focus-visible {
-  background: rgba(10, 10, 12, .85);
-  outline: 2px solid #fff;
-  outline-offset: 1px;
-}
-
-.timeline-adjust.restore {
-  border-color: var(--success);
-  color: var(--success);
 }
 
 .overview-heading {
@@ -1193,7 +1169,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
 
         <section class="help-card" id="completions"><h2>Recording completions</h2><p>During a productive scheduled segment, press an outcome button to add a timestamped completion against its active planned queue. During a non-productive activity or outside the schedule, pressing an outcome button opens a form for its department, task/queue, and completion time instead.</p><p>Use <strong>Menu → Completed Apps</strong> to review today’s entries, correct a completion time, change its task/queue, or delete mistakes. Changing the time automatically assigns the productive queue scheduled at the new time. If no productive queue was scheduled then, the existing queue remains selected and the entry is shown without a scheduled activity; use the task/queue dropdown to override it.</p></section>
 
-        <section class="help-card" id="targets"><h2>Targets and timer</h2><p>A productive segment's raw expectation is its hours multiplied by its queue's apps-per-hour rate. Any positive result is rounded up to a whole app. Target due times are spread evenly from segment start to segment end.</p><p>On the Day Overview timeline, the target-adjustment control reduces a segment's rounded requirement by one; selecting it again restores the app. The result never falls below zero. This is stored with the segment and is reflected in the timer, reminders and totals.</p><p>The Scheduled apps list retains historical targets. A completed target shows its actual completion time; otherwise it shows the ETC. An active non-productive activity is kept at the top until it ends. During productive time, the view advances only after an application is submitted, including when it is completed ahead of its ETC. If you browse elsewhere in the list, select the target icon beside Scheduled apps to jump back to the current item.</p><p>The timer shows no active target before/after the shift, during zero-rate activities, or after every slot in the current segment has passed. The one-time Final App splash appears when the final target window begins, so a queue paced at roughly 3.4 apps/hour shows it around 17 minutes before segment end, while a queue paced at 60 apps/hour shows it around one minute before the end. This is separate from the optional escalating music, which plays only during the final 30 seconds of every segment, including non-productive activities.</p></section>
+        <section class="help-card" id="targets"><h2>Targets and timer</h2><p>A productive segment's raw expectation is its hours multiplied by its queue's apps-per-hour rate. Any positive result is rounded up to a whole app. Target due times are spread evenly from segment start to segment end.</p><p>In Day Details, use the minus and plus buttons beside a segment's Expected apps value to account for exceptions. You can adjust a target by more than one in either direction, although the result never falls below zero. Adjustments are stored with the segment and reflected in the timer, reminders and totals.</p><p>The Scheduled apps list retains historical targets. A completed target shows its actual completion time; otherwise it shows the ETC. An active non-productive activity is kept at the top until it ends. During productive time, the view advances only after an application is submitted, including when it is completed ahead of its ETC. If you browse elsewhere in the list, select the target icon beside Scheduled apps to jump back to the current item.</p><p>The timer shows no active target before/after the shift, during zero-rate activities, or after every slot in the current segment has passed. The one-time Final App splash appears when the final target window begins, so a queue paced at roughly 3.4 apps/hour shows it around 17 minutes before segment end, while a queue paced at 60 apps/hour shows it around one minute before the end. This is separate from the optional escalating music, which plays only during the final 30 seconds of every segment, including non-productive activities.</p></section>
 
         <section class="help-card" id="notifications"><h2>Notification settings</h2><p>Open <strong>Menu → Notifications</strong>.</p><dl><dt>Enable scheduled target reminders</dt><dd>Turns the periodic due-target checks on or off. Enabling reminders starts with the next target rather than replaying one that is already due.</dd><dt>Send test toast</dt><dd>Shows an immediate in-page sample.</dd><dt>Play a sound</dt><dd>Generates a short reminder tone. Browsers may require a user interaction before audio is allowed.</dd><dt>Play a click when recording outcomes</dt><dd>Plays a short click after an outcome is successfully recorded. Turn this off to keep the button animation silent.</dd></dl><p>Target reminders and the Final App overlay are paused while the Schedule dialog is open. Targets that pass while you edit are skipped, and reminders resume with the next target after the schedule closes.</p><div class="help-callout warning"><strong>Keep the tab open.</strong> Reminders are in-page toasts, so this static application cannot show them after the dashboard is closed.</div></section>
 
@@ -1692,14 +1668,15 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
 
     // This is the single source of truth for every segment target. A fractional
     // app cannot be completed, so first round the segment total up, apply the
-    // optional one-app manual reduction, and only then derive its cadence. Timer
+    // optional whole-app manual adjustment, and only then derive its cadence. Timer
     // readouts, bars, reminders and target totals all consume this same plan.
     function getSegmentTargetPlan(segment, segments = state.segments, queues = state.queues, shiftEnd = state.shiftEnd) {
       const queue = getQueue(segment.queueId, queues);
       const durationSeconds = getSegmentMinutes(segment, segments, shiftEnd) * 60;
       const rawExpectedApps = queue ? (durationSeconds / 3600) * Number(queue.rate || 0) : 0;
       const roundedExpectedApps = rawExpectedApps > 0 ? Math.ceil(rawExpectedApps) : 0;
-      const targetAdjustment = segment.targetAdjustment === -1 ? -1 : 0;
+      const storedAdjustment = Math.trunc(Number(segment.targetAdjustment) || 0);
+      const targetAdjustment = Math.max(-roundedExpectedApps, storedAdjustment);
       const expectedApps = Math.max(0, roundedExpectedApps + targetAdjustment);
       return {
         rawExpectedApps,
@@ -1916,12 +1893,9 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         const completed = state.completions.filter(app => app.segmentId === segment.id).length;
         const expectedText = expected > 0 ? `${expected} ${expected === 1 ? "app" : "apps"}` : "No expected apps";
         const completedText = `${completed} completed`;
-        const adjustmentText = target.targetAdjustment === -1 ? " · manually reduced by 1" : "";
+        const adjustmentText = target.targetAdjustment ? ` · manually adjusted ${target.targetAdjustment > 0 ? "+" : ""}${target.targetAdjustment}` : "";
         const title = `${queue?.name || "Missing queue"}: ${segment.start}-${getSegmentEnd(segment)} · ${completedText} / ${expectedText}${adjustmentText}`;
-        const adjustmentButton = target.roundedExpectedApps > 0
-          ? `<button class="timeline-adjust ${target.targetAdjustment === -1 ? "restore" : ""}" type="button" data-adjust-segment="${segment.id}" aria-label="${target.targetAdjustment === -1 ? "Restore one app to" : "Reduce by one app for"} ${escapeHtml(queue?.name || "this segment")}, ${segment.start} to ${getSegmentEnd(segment)}" title="${target.targetAdjustment === -1 ? "Restore one app" : "Reduce requirement by one app"}">${target.targetAdjustment === -1 ? "+" : "−"}</button>`
-          : "";
-        return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};">${adjustmentButton}</div>` : "";
+        return segmentMinutes > 0 ? `<div class="timeline-block" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" style="width: ${(segmentMinutes / total) * 100}%; --queue-color: ${queue?.color || "#14b8a6"};"></div>` : "";
       }).join("");
     }
 
@@ -2567,7 +2541,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         rawExpected,
         expectedApps,
         completed,
-        adjusted: plans.reduce((sum, plan) => sum + (plan.targetAdjustment === -1 ? 1 : 0), 0),
+        adjusted: plans.reduce((sum, plan) => sum + plan.targetAdjustment, 0),
         predictedEfficiency: rawExpected > 0 ? (expectedApps / rawExpected) * 100 : null,
         expectedAppsPerHour: minutes > 0 ? expectedApps / (minutes / 60) : null,
         currentAppsPerHour: elapsedHours > 0 ? currentCompleted / elapsedHours : null,
@@ -2579,12 +2553,15 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       return Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : "--";
     }
 
-    function renderDetailRow(name, sub, segments, color = null, exactSegments = false) {
+    function renderDetailRow(name, sub, segments, color = null, exactSegments = false, adjustableSegment = null) {
       const summary = getDayDetailSummary(segments, exactSegments);
-      const modifier = summary.adjusted ? `<span class="pill warn">${summary.adjusted} modified</span>` : "";
+      const modifier = summary.adjusted ? `<span class="pill warn">${summary.adjusted > 0 ? "+" : ""}${summary.adjusted} adjusted</span>` : "";
+      const expectedApps = adjustableSegment
+        ? `<div class="target-adjuster"><button class="btn small" type="button" data-adjust-segment="${adjustableSegment.id}" data-adjust-direction="-1" aria-label="Reduce expected apps by one"${summary.expectedApps === 0 ? " disabled" : ""}>−</button><output>${summary.expectedApps}</output><button class="btn small" type="button" data-adjust-segment="${adjustableSegment.id}" data-adjust-direction="1" aria-label="Increase expected apps by one">+</button></div>`
+        : summary.expectedApps;
       return `<tr>
         <td><div class="detail-name">${color ? `<span class="swatch" style="--queue-color:${color}"></span>` : ""}<span>${escapeHtml(name)}<br><span class="detail-sub">${escapeHtml(sub)}</span></span>${modifier}</div></td>
-        <td>${formatHoursMinutes(summary.minutes / 60)}</td><td>${summary.completed}</td><td>${summary.expectedApps}</td>
+        <td>${formatHoursMinutes(summary.minutes / 60)}</td><td>${summary.completed}</td><td>${expectedApps}</td>
         <td>${detailMetric(summary.expectedAppsPerHour)}</td><td>${detailMetric(summary.predictedEfficiency, "%")}</td>
         <td>${detailMetric(summary.currentAppsPerHour)}</td><td>${formatAht(summary.currentAppsPerHour)}</td><td>${detailMetric(summary.currentEfficiency, "%")}</td>
       </tr>`;
@@ -2644,7 +2621,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       }).join("");
       const segmentRows = getSortedSegments().filter(segment => isProductiveQueue(getQueue(segment.queueId))).map(segment => {
         const queue = getQueue(segment.queueId);
-        return renderDetailRow(queue?.name || "Missing queue", `${segment.start}–${getSegmentEnd(segment)} · ${getDepartment(queue?.departmentId)?.name || "Unassigned"}`, [segment], queue?.color, true);
+        return renderDetailRow(queue?.name || "Missing queue", `${segment.start}–${getSegmentEnd(segment)} · ${getDepartment(queue?.departmentId)?.name || "Unassigned"}`, [segment], queue?.color, true, segment);
       }).join("");
       els.dayDetailContent.innerHTML = `
         <section class="stats-grid four">
@@ -2824,17 +2801,20 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       const deleteSegmentId = event.target.dataset.deleteSegment;
       const deleteCompletionId = event.target.dataset.deleteCompletion;
       const adjustSegmentId = event.target.dataset.adjustSegment;
+      const adjustDirection = Number(event.target.dataset.adjustDirection);
       const editDepartmentId = event.target.dataset.editDepartment;
       const deleteDepartmentId = event.target.dataset.deleteDepartment;
 
       if (adjustSegmentId) {
         const segment = state.segments.find(item => item.id === adjustSegmentId);
-        if (!segment) return;
-        const wasReduced = segment.targetAdjustment === -1;
-        segment.targetAdjustment = wasReduced ? 0 : -1;
+        if (!segment || ![-1, 1].includes(adjustDirection)) return;
+        const plan = getSegmentTargetPlan(segment);
+        if (adjustDirection < 0 && plan.expectedApps === 0) return;
+        segment.targetAdjustment = plan.targetAdjustment + adjustDirection;
         const queue = getQueue(segment.queueId);
-        logActivity("plan", `${wasReduced ? "Restored" : "Reduced"} the ${queue?.name || "queue"} requirement for ${segment.start}-${getSegmentEnd(segment)} by one app.`);
+        logActivity("plan", `${adjustDirection > 0 ? "Increased" : "Reduced"} the ${queue?.name || "queue"} requirement for ${segment.start}-${getSegmentEnd(segment)} by one app.`);
         renderAll();
+        if (els.dayDetailDialog.open) renderDayDetails();
       }
 
       if (editQueueId) {
