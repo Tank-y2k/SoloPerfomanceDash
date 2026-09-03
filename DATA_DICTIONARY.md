@@ -146,8 +146,8 @@ Segments must start within the shift and cannot have duplicate start times. Thei
 | Running efficiency | Relevant completions at or before the current time divided by running expected apps, multiplied by 100. The live day metric is restricted to the active queue's department. |
 | Predicted efficiency | Recalculated whole-app target divided by the raw unrounded expectation, multiplied by 100. Available for the whole day and grouped by department, queue, and segment in Day Details. |
 | Expected apps/hour | Recalculated whole-app target divided by productive scheduled hours for the selected Day Details scope. |
-| Day Details current apps/hour | Completions recorded at or before the current time divided by elapsed productive hours in the selected whole-day, department, queue, or segment scope. |
-| Day Details current efficiency | Completions recorded at or before the current time divided by the raw queue-rate expectation earned over elapsed productive time in the selected scope, multiplied by 100. |
+| Day Details current apps/hour | Completions recorded at or before the current time divided by elapsed productive hours in the selected whole-day, department, queue, or segment scope. Whole-day, department, and queue scopes include completions by their recorded productive queue even when that queue is not scheduled; segment scope requires the exact segment ID. |
+| Day Details current efficiency | Completions recorded at or before the current time divided by the raw queue-rate expectation earned over elapsed productive time in the selected scope, multiplied by 100. Queue-based scopes include unscheduled-queue completions in the numerator while retaining only scheduled productive time in the denominator. |
 | Current variance | Total completions minus current expected full-day total. |
 | Timer ETC | Local clock time of the next scheduled target slot. |
 | Timer Target | Current target ordinal and segment total, e.g. `2 / 5`. |

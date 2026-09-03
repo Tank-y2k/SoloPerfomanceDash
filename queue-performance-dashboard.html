@@ -1167,7 +1167,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
         <section class="help-card" id="settings"><h2>Queue settings</h2><p>Open <strong>Menu → Queue Settings</strong> to create, edit, or delete queue definitions and manage departments.</p><h3>Add a queue</h3><ul><li><strong>Queue name:</strong> the label shown throughout the dashboard.</li><li><strong>Apps per hour:</strong> the expected throughput. Decimal values are accepted. A rate of zero makes the entry non-productive and creates no app targets.</li><li><strong>Department:</strong> required for productive queues. BCA and PCA are included by default; AA belongs under PCA while the initial productive queues belong under BCA.</li><li><strong>Colour:</strong> identifies the queue in schedule and timeline displays.</li></ul><h3>Edit and delete</h3><p>Use a queue row's controls to edit its name, rate, department, or colour. A queue cannot be deleted while today's plan uses it.</p><h3>Manage departments</h3><p>Add or rename departments in the Departments section. A custom department can only be deleted when it has no queues. Built-in BCA and PCA cannot be deleted.</p><div class="help-callout"><strong>Built-in activities:</strong> Non-productive, Off queue, and Team Briefings are locked at zero apps/hour. They cannot be renamed or deleted, although their colours can be changed.</div></section>
 
 
-        <section class="help-card" id="completions"><h2>Recording completions</h2><p>During a productive scheduled segment, press an outcome button to add a timestamped completion against its active planned queue. During a non-productive activity or outside the schedule, pressing an outcome button opens a form for its department, task/queue, and completion time instead.</p><p>Use <strong>Menu → Completed Apps</strong> to review today’s entries, correct a completion time, change its task/queue, or delete mistakes. Changing the time automatically assigns the productive queue scheduled at the new time. If no productive queue was scheduled then, the existing queue remains selected and the entry is shown without a scheduled activity; use the task/queue dropdown to override it.</p></section>
+        <section class="help-card" id="completions"><h2>Recording completions</h2><p>During a productive scheduled segment, press an outcome button to add a timestamped completion against its active planned queue. During a non-productive activity or outside the schedule, pressing an outcome button opens a form for its department, task/queue, and completion time instead. That work counts in whole-day, department, and queue performance even when the selected queue is not on today's schedule.</p><p>Use <strong>Menu → Completed Apps</strong> to review today’s entries, correct a completion time, change its task/queue, or delete mistakes. Changing the time automatically assigns the productive queue scheduled at the new time. If no productive queue was scheduled then, the existing queue remains selected and the entry is shown without a scheduled activity; use the task/queue dropdown to override it.</p></section>
 
         <section class="help-card" id="targets"><h2>Targets and timer</h2><p>A productive segment's raw expectation is its hours multiplied by its queue's apps-per-hour rate. Any positive result is rounded up to a whole app. Target due times are spread evenly from segment start to segment end.</p><p>In Day Details, use the minus and plus buttons beside a segment's Expected apps value to account for exceptions. You can adjust a target by more than one in either direction, although the result never falls below zero. Adjustments are stored with the segment and reflected in the timer, reminders and totals.</p><p>The Scheduled apps list retains historical targets. A completed target shows its actual completion time; otherwise it shows the ETC. An active non-productive activity is kept at the top until it ends. During productive time, the view advances only after an application is submitted, including when it is completed ahead of its ETC. If you browse elsewhere in the list, select the target icon beside Scheduled apps to jump back to the current item.</p><p>The timer shows no active target before/after the shift, during zero-rate activities, or after every slot in the current segment has passed. The one-time Final App splash appears when the final target window begins, so a queue paced at roughly 3.4 apps/hour shows it around 17 minutes before segment end, while a queue paced at 60 apps/hour shows it around one minute before the end. This is separate from the optional escalating music, which plays only during the final 30 seconds of every segment, including non-productive activities.</p></section>
 
@@ -2518,10 +2518,13 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       logActivity("export", `Exported CSV for ${state.completions.length} completions.`);
     }
 
-    function getDayDetailSummary(segments, exactSegments = false) {
+    function getDayDetailSummary(segments, exactSegments = false, completionQueueIds = null) {
       const productiveSegments = segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
       const segmentIds = new Set(productiveSegments.map(segment => segment.id));
-      const queueIds = new Set(productiveSegments.map(segment => segment.queueId));
+      // Non-segment summaries are queue-based rather than schedule-based. The
+      // caller can therefore include work completed for a queue that has no
+      // segment today (for example, a resub completed while handling tickets).
+      const queueIds = completionQueueIds || new Set(productiveSegments.map(segment => segment.queueId));
       const now = nowDate();
       const minutes = productiveSegments.reduce((sum, segment) => sum + getSegmentMinutes(segment), 0);
       const elapsedHours = productiveSegments.reduce((sum, segment) => sum + getElapsedSegmentHours(segment), 0);
@@ -2553,8 +2556,8 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       return Number.isFinite(value) ? `${value.toFixed(1)}${suffix}` : "--";
     }
 
-    function renderDetailRow(name, sub, segments, color = null, exactSegments = false, adjustableSegment = null) {
-      const summary = getDayDetailSummary(segments, exactSegments);
+    function renderDetailRow(name, sub, segments, color = null, exactSegments = false, adjustableSegment = null, completionQueueIds = null) {
+      const summary = getDayDetailSummary(segments, exactSegments, completionQueueIds);
       const modifier = summary.adjusted ? `<span class="pill warn">${summary.adjusted > 0 ? "+" : ""}${summary.adjusted} adjusted</span>` : "";
       const expectedApps = adjustableSegment
         ? `<div class="target-adjuster"><button class="btn small" type="button" data-adjust-segment="${adjustableSegment.id}" data-adjust-direction="-1" aria-label="Reduce expected apps by one"${summary.expectedApps === 0 ? " disabled" : ""}>−</button><output>${summary.expectedApps}</output><button class="btn small" type="button" data-adjust-segment="${adjustableSegment.id}" data-adjust-direction="1" aria-label="Increase expected apps by one">+</button></div>`
@@ -2609,15 +2612,24 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
       const detailScroller = els.dayDetailDialog.querySelector(".modal-inner");
       const previousScrollTop = detailScroller?.scrollTop || 0;
       const productive = state.segments.filter(segment => isProductiveQueue(getQueue(segment.queueId)));
-      const wholeDay = getDayDetailSummary(productive);
+      const productiveQueues = state.queues.filter(isProductiveQueue);
+      const allProductiveQueueIds = new Set(productiveQueues.map(queue => queue.id));
+      const wholeDay = getDayDetailSummary(productive, false, allProductiveQueueIds);
       const nonProductiveMinutes = state.segments.filter(segment => !isProductiveQueue(getQueue(segment.queueId))).reduce((sum, segment) => sum + getSegmentMinutes(segment), 0);
       const departmentRows = state.departments.map(department => {
         const segments = productive.filter(segment => getQueue(segment.queueId)?.departmentId === department.id);
-        return segments.length ? renderDetailRow(department.name, `${segments.length} productive ${segments.length === 1 ? "segment" : "segments"}`, segments) : "";
+        const queueIds = new Set(productiveQueues.filter(queue => queue.departmentId === department.id).map(queue => queue.id));
+        const hasCompletions = state.completions.some(app => queueIds.has(app.queueId));
+        return segments.length || hasCompletions
+          ? renderDetailRow(department.name, `${segments.length} productive ${segments.length === 1 ? "segment" : "segments"}`, segments, null, false, null, queueIds)
+          : "";
       }).join("");
-      const queueRows = state.queues.filter(isProductiveQueue).map(queue => {
+      const queueRows = productiveQueues.map(queue => {
         const segments = productive.filter(segment => segment.queueId === queue.id);
-        return segments.length ? renderDetailRow(queue.name, getDepartment(queue.departmentId)?.name || "Unassigned", segments, queue.color) : "";
+        const hasCompletions = state.completions.some(app => app.queueId === queue.id);
+        return segments.length || hasCompletions
+          ? renderDetailRow(queue.name, getDepartment(queue.departmentId)?.name || "Unassigned", segments, queue.color, false, null, new Set([queue.id]))
+          : "";
       }).join("");
       const segmentRows = getSortedSegments().filter(segment => isProductiveQueue(getQueue(segment.queueId))).map(segment => {
         const queue = getQueue(segment.queueId);
@@ -2634,7 +2646,7 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
           <article class="stat"><div class="value">${formatHoursMinutes(nonProductiveMinutes / 60)}</div><div class="label">Non-productive time</div></article>
         </section>
         <p class="subtle">Predicted efficiency compares each recalculated whole-app target with its unrounded queue-rate expectation. Rounding up normally makes it at least 100%; manual target reductions can lower it.</p>
-        <section><h3 class="detail-section-heading">Whole day</h3>${renderDetailTable(renderDetailRow("All departments", `${productive.length} productive segments`, productive))}</section>
+        <section><h3 class="detail-section-heading">Whole day</h3>${renderDetailTable(renderDetailRow("All departments", `${productive.length} productive segments`, productive, null, false, null, allProductiveQueueIds))}</section>
         <section><h3 class="detail-section-heading">By department</h3>${renderDetailTable(departmentRows || '<tr><td colspan="9" class="subtle">No productive departments scheduled.</td></tr>')}</section>
         <section><h3 class="detail-section-heading">By queue</h3>${renderDetailTable(queueRows || '<tr><td colspan="9" class="subtle">No productive queues scheduled.</td></tr>')}</section>
         <section><h3 class="detail-section-heading">Every segment</h3>${renderDetailTable(segmentRows || '<tr><td colspan="9" class="subtle">No productive segments scheduled.</td></tr>')}</section>`;
