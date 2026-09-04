@@ -671,9 +671,11 @@ input:focus, select:focus, textarea:focus {
 .upcoming-app-queue { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
 .upcoming-app-time { color: var(--accent); font-variant-numeric: tabular-nums; font-weight: 800; }
 .upcoming-app.completed .upcoming-app-time { color: var(--success); }
+.upcoming-app.segment-colour-tag {
+  box-shadow: inset 3px 0 var(--queue-color, var(--muted));
+}
 .upcoming-app.non-productive {
   background: rgba(255, 255, 255, .035);
-  box-shadow: inset 3px 0 var(--queue-color, var(--muted));
 }
 .upcoming-app.non-productive .upcoming-app-number { font-size: 1rem; }
 .upcoming-app.non-productive .upcoming-app-time { color: var(--muted); }
@@ -1996,13 +1998,13 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
 
       els.upcomingApps.innerHTML = items.length
         ? items.map(item => item.type === "app" ? `
-            <div class="upcoming-app ${item.completion ? "completed" : ""}" ${item === focusedItem ? 'data-scheduled-focus="true"' : ""}>
+            <div class="upcoming-app segment-colour-tag ${item.completion ? "completed" : ""}" ${item === focusedItem ? 'data-scheduled-focus="true"' : ""} style="--queue-color: ${item.slot.queue.color || "#64748b"};">
               <span class="upcoming-app-number">${item.appIndex}</span>
               <span class="upcoming-app-queue" title="${escapeHtml(item.slot.queue.name)}">${escapeHtml(item.slot.queue.name)}</span>
               <time class="upcoming-app-time" datetime="${(item.completion ? new Date(item.completion.at) : item.at).toISOString()}">${item.completion ? formatClock(item.completion.at) : `ETC ${formatClock(item.at.toISOString())}`}</time>
             </div>
           ` : `
-            <div class="upcoming-app non-productive" ${item === focusedItem ? 'data-scheduled-focus="true"' : ""} style="--queue-color: ${item.queue?.color || "#64748b"};">
+            <div class="upcoming-app segment-colour-tag non-productive" ${item === focusedItem ? 'data-scheduled-focus="true"' : ""} style="--queue-color: ${item.queue?.color || "#64748b"};">
               <span class="upcoming-app-number" aria-hidden="true">—</span>
               <span class="upcoming-app-queue" title="${escapeHtml(item.queue?.name || "Non-productive activity")}">${escapeHtml(item.queue?.name || "Non-productive activity")}</span>
               <span class="upcoming-app-time">${item.segment.start}–${getSegmentEnd(item.segment)}</span>
