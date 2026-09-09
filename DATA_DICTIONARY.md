@@ -19,8 +19,8 @@ This document catalogues the Queue Performance Dashboard's persisted data, recor
 |---|---|---:|---|
 | `departments` | `Department[]` | BCA and PCA | Manageable department definitions used to group productive queues. |
 | `queues` | `Queue[]` | Built-in and five productive queues | Available productive queues and non-productive activities. |
-| `shiftStart` | `string` (`HH:MM`) | `11:00` | Inclusive start of the planned shift. |
-| `shiftEnd` | `string` (`HH:MM`) | `19:30` | End of the planned shift and end of the last segment. Must follow `shiftStart`. |
+| `shiftStart` | `string` (`HH:MM` or `HH:MM:SS`) | `11:00` | Inclusive start of the planned shift. The editor displays and accepts seconds. |
+| `shiftEnd` | `string` (`HH:MM` or `HH:MM:SS`) | `19:30` | End of the planned shift and end of the last segment. Must follow `shiftStart`; the editor displays and accepts seconds. |
 | `segments` | `Segment[]` | Team Briefings at `11:00` | Today's planned activities. |
 | `completions` | `Completion[]` | `[]` | Applications recorded during the current day. |
 | `activityLog` | `ActivityEntry[]` | `[]` | Human-readable audit events for plan, setting, completion, and export actions. |
@@ -65,7 +65,7 @@ Built-in locked queues are **Non-productive** (`#71717a`), **Off queue** (`#f59e
 |---|---|---:|---|
 | `id` | UUID string | Yes | Segment identifier. |
 | `queueId` | UUID string | Yes | Queue/activity assigned to the segment. |
-| `start` | string (`HH:MM`) | Yes | Segment start. It ends at the next segment start or `shiftEnd`. |
+| `start` | string (`HH:MM` or `HH:MM:SS`) | Yes | Segment start. It ends at the next segment start or `shiftEnd`; legacy minute-only values remain valid and are displayed with `:00` seconds. |
 | `targetAdjustment` | integer | No | Whole-app adjustment added to the rounded segment target; absent behaves as `0`, and negative values are limited so the target cannot fall below zero. |
 
 Segments must start within the shift and cannot have duplicate start times. Their array is sorted by start time after editing.
@@ -99,11 +99,11 @@ Segments must start within the shift and cannot have duplicate start times. Thei
 | Queue colour | Browser colour value / prompted CSS colour | Controls queue presentation. |
 | Queue department | Existing department ID | Required for productive queues; omitted for zero-rate activities. |
 | Department name | Unique non-empty string | Creates or renames a department. A department must have no queues before deletion. |
-| Shift starts / ends | `HH:MM` | Bounds the schedule; end must be later. |
+| Shift starts / ends | `HH:MM:SS` | Bounds the schedule; end must be later. |
 | Segment queue | Existing queue ID | Assigns work/activity to the segment. |
-| Segment start | `HH:MM` within shift | Defines this segment's start and the prior segment's end. |
+| Segment start | `HH:MM:SS` within shift | Defines this segment's start and the prior segment's end. |
 | Completion queue | Productive queue ID | Taken from the active planned segment. |
-| Edited completion time | Local `HH:MM` | Replaces the completion timestamp's local time and automatically resolves its productive scheduled segment and queue. |
+| Edited completion time | Local `HH:MM:SS` | Replaces the completion timestamp's local time and automatically resolves its productive scheduled segment and queue. |
 | Edited completion queue | Productive queue ID | Overrides the recorded queue; the scheduled segment is retained only when it uses that queue. |
 | Outcome | One of `Approve`, `Decline`, `Resub`, `ORE`, or `Other` | Button-selected classification exported with completion history. |
 | Scheduled reminders | Boolean | Enables due-slot reminder checks while open. |
@@ -164,7 +164,7 @@ The file is named `queue-history-YYYY-MM-DD.csv`. Every value is quoted and embe
 | `outcome` | `Completion.outcome` | Selected completion outcome. |
 | `recorded_at` | `Completion.at` | ISO timestamp of completion. |
 | `planned_queue` | Queue resolved via `Completion.segmentId` | Queue assigned to the contemporaneous planned segment, or blank. |
-| `planned_segment` | Resolved segment bounds | `HH:MM-HH:MM`, or blank if no segment matched. |
+| `planned_segment` | Resolved segment bounds | `HH:MM:SS-HH:MM:SS`, or blank if no segment matched. |
 
 ## Reset and rollover behavior
 

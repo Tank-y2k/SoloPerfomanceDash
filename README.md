@@ -25,7 +25,7 @@ No installation or compilation is required.
 
 Open **Menu → Help** for the complete user guide without leaving the dashboard.
 
-Forgot to record an application at the right moment? Open **Menu → Completed Apps** and edit its completion time. The dashboard selects the productive queue scheduled at the corrected time automatically, and the adjacent task/queue dropdown provides a manual override. If an outcome button is pressed during a non-productive activity, the dashboard instead asks for the completion’s department, task/queue, and time.
+Forgot to record an application at the right moment? Open **Menu → Completed Apps** and edit its completion time, including seconds. The dashboard selects the productive queue scheduled at the corrected time automatically, and the adjacent task/queue dropdown provides a manual override. If an outcome button is pressed during a non-productive activity, the dashboard instead asks for the completion’s department, task/queue, and time.
 
 ## Data and privacy
 
