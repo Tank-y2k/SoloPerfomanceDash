@@ -1049,7 +1049,9 @@ dialog:not(.popup-dialog) .log-list { max-height: none; }
 }
 
 @media (max-width: 480px) {
-  .app-shell { width: min(100% - 12px, 500px); }
+  /* Use every available pixel when the dashboard is docked in a narrow rail. */
+  .app-shell { width: 100%; padding-block: 0; }
+  .main-panel { border-inline: 0; border-radius: 0; }
   .title-block h1 { font-size: 1.65rem; }
   .tracker-fact { padding: 0 6px; }
   .tracker-fact-label { font-size: .62rem; }
